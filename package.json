@@ -1,0 +1,17 @@
+{
+	"name": "donation_client",
+	"files": [
+		"client.js",
+		"passwordAlgos.js",
+		"databaseType1.js",
+		"databaseType2.js"
+	],
+	"dependencies": {
+		"mysql": "^2.18.1",
+		"socket.io-client": "^4.7.2"
+	},
+	"scripts": {
+		"lin": "pkg ./client.js --target node18-linux-x64 --output ./build/client",
+		"win": "pkg ./client.js --target node18-windows-x64 --output ./build/client"
+	}
+}
