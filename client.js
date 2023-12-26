@@ -33,10 +33,10 @@ const client = async () => {
 
     try {
 
-        console.log(dateTime() + " | -------------------------------------------");
+        console.log(dateTime() + " | ---------------------------------------------------------------------------");
         console.log(dateTime() + " | Private Lineage2 server, blockchain support");
         console.log(dateTime() + " | Learn more about our project at fiskpay.com");
-        console.log(dateTime() + " | -------------------------------------------");
+        console.log(dateTime() + " |");
         console.log(dateTime() + " | Fetching remote IP address...");
 
         const remoteIPAddress = (await (await fetch("https://api.ipify.org/?format=json")).json()).ip;
@@ -79,42 +79,65 @@ const client = async () => {
             serverStatus[id].c = connected;
         });
 
-        console.log(dateTime() + " | Connecting to servers...");
+        console.log(dateTime() + " |");
+        console.log(dateTime() + " | Connecting to loginserver database...");
 
-        for (let key in config) {
+        let cfg = config["ls"];
 
-            if (!(((/^\b([1-9]|[1-9][0-9]|1[01][0-9]|12[0-7])\b$/).test(key) || key == "ls") && serverStatus[key] === undefined))
-                continue;
+        if (cfg && cfg.dbName && cfg.dbPort && cfg.dbUsername && cfg.dbPassword && cfg.dbTableColumns && cfg.dbTableColumns.accounts && cfg.dbTableColumns.gameservers) {
 
-            const cfg = config[key];
+            serverStatus["ls"] = {};
 
-            if (key == "ls") {
+            await connector.CONNECT_SERVER("ls");
+            await new Promise((resolve) => {
 
-                if (!(cfg.dbName && cfg.dbPort && cfg.dbUsername && cfg.dbPassword && cfg.dbTableColumns && cfg.dbTableColumns.accounts && cfg.dbTableColumns.gameservers))
-                    continue;
+                const interval = setInterval(() => {
+
+                    if (serverStatus["ls"].v !== undefined && serverStatus["ls"].c !== undefined) {
+
+                        clearInterval(interval);
+                        resolve(true);
+                    }
+                }, 250);
+            });
+
+            console.log(dateTime() + " |");
+            console.log(dateTime() + " | Connecting to gameserver(s) database...");
+
+            if (serverStatus["ls"].v === true && serverStatus["ls"].c === true) {
+
+                for (const id of await connector.GET_IDS()) {
+
+                    if (((/^\b([1-9]|[1-9][0-9]|1[01][0-9]|12[0-7])\b$/).test(id) && serverStatus[id] === undefined)) {
+
+                        cfg = config[id];
+
+                        if (cfg && cfg.rewardId && cfg.dbName && cfg.dbIPAddress && cfg.dbPort && cfg.dbUsername && cfg.dbPassword && cfg.dbTableColumns && cfg.dbTableColumns.characters && cfg.dbTableColumns.items) {
+
+                            serverStatus[id] = {};
+                            await connector.CONNECT_SERVER(id);
+                        }
+                    }
+                    else
+                        console.log(dateTime() + " | Server `" + id + "` improper configuration");
+                };
+
+                console.log(dateTime() + " |");
+                console.log(dateTime() + " | Connecting to service...");
+
+
             }
-            else {
-
-                if (!(cfg.rewardId && cfg.dbName && cfg.dbIPAddress && cfg.dbPort && cfg.dbUsername && cfg.dbPassword && cfg.dbTableColumns && cfg.dbTableColumns.characters && cfg.dbTableColumns.items))
-                    continue;
-            }
-
-            serverStatus[key] = {};
-            await connector.CONNECT_SERVER(key);
         }
+        else
+            console.log(dateTime() + " | Server `ls` improper configuration");
 
-        // await connector.VALIDATE_DATABASE();
 
-        // gsIDs = await connector.GET_IDS();
 
-        // console.log(gsID)
+
+
+
+
         /*
-                if (await connector.CONNECT_GAME({ "connector": config.GameServerDB.name, "host": "127.0.0.1", "port": config.GameServerDB.port, "user": config.GameServerDB.username, "password": config.GameServerDB.password, "debug": false }))
-                    console.log(dateTime() + " | Gameserver connector connected @ 127.0.0.1:" + config.GameServerDB.port);
-         
-                if (gsID !== false) {
-         
-                    console.log(dateTime() + " | Gameserver id: " + gsID);
          
                     await connector.REFUND_EXPIRED();
                
@@ -302,16 +325,11 @@ const client = async () => {
                     wsClient.connect();
                     
         }
-        else {
-        
-        console.log(dateTime() + " | Multiple or zero `server_id` records");
-        process.exit()
-        }
         */
     }
     catch (error) {
 
-        console.log("dfg")
+        console.log("uncaught")
 
         if (error.sqlMessage)
             console.log(dateTime() + " | " + error.sqlMessage);
