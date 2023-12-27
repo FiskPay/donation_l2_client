@@ -213,15 +213,15 @@ class Connector extends EventEmitter {
             connection.on("error", () => {
 
                 clearInterval(this.#serverInterval[id]);
-                this.emit("serverUpdate", id, false);
+                this.emit("update", id, false);
             });
 
             this.#serverInterval[id] = setInterval(() => { connection.query("SELECT 1;"); }, 45000);
-            this.emit("serverUpdate", id, true);
+            this.emit("update", id, true);
         }
         catch {
 
-            this.emit("serverUpdate", id, false);
+            this.emit("update", id, false);
         }
 
         return await new Promise((resolve) => setTimeout(() => { resolve(true); }, 500));
