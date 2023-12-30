@@ -223,6 +223,8 @@ const client = async () => {
     console.log(dateTime() + " |                   Fiskpay blockchain support for Lineage2 servers                   ");
     console.log(dateTime() + " | ------------------------------------------------------------------------------------");
 
+    const tokenSymbol = "LINK";
+
     try {
 
         console.log(dateTime() + " |");
@@ -269,7 +271,7 @@ const client = async () => {
 
             serversStatus[id].c = status;
 
-            socketConnector.volatile.emit("serversStatus", serversStatus);
+            socketConnector.emit("serversStatus", serversStatus);
         });
 
         console.log(dateTime() + " |");
@@ -334,67 +336,44 @@ const client = async () => {
         console.log(dateTime() + " |");
         console.log(dateTime() + " | Connecting to fiskpay service...");
 
-        const msgObject = { "step": null, "subject": null, "type": null, "from": null, "to": null, "data": {} };
-        const tokenSymbol = "LINK";
+        socketConnector.on("connect", () => {
 
-        const connect = () => {
+            socketConnector.emit("login", [tokenSymbol, connectorConfig["client"].walletAddress, connectorConfig["client"].password, serversStatus], (result, status) => {
 
-            socketConnector.off();
+                if (result !== true) {
 
-            socketConnector.once("connect", () => {
+                    console.log(dateTime() + " | " + result);
+                    process.exit()
+                }
 
-                socketConnector.emit("login", [tokenSymbol, connectorConfig["client"].walletAddress, connectorConfig["client"].password, serversStatus], (result, status) => {
+                chainStatus = status;
 
-                    chainStatus = status;
-
-                    if (result !== true) {
-
-                        console.log(dateTime() + " | " + result);
-                        process.exit()
-                    }
-
-                    socketConnector.on("disconnect", () => {
-
-                        console.log(dateTime() + " |");
-                        console.log(dateTime() + " | Connection to service lost");
-
-                        connect();
-                    }).on("chainStatus", (status) => {
-
-                        chainStatus = status;
-                    });
-
-                    console.log(dateTime() + " | Connection to service established");
-                    console.log(dateTime() + " |");
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                });
+                console.log(dateTime() + " | Connection to service established");
+                console.log(dateTime() + " |");
             });
-        }
+        }).on("disconnect", () => {
 
-        connect();
+            console.log(dateTime() + " |");
+            console.log(dateTime() + " | Connection to service lost");
+        }).on("chainStatus", (status) => {
+
+            chainStatus = status;
+        }).on("logDeposit", async (obj) => {
+
+
+        }).on("logWithdrawal", async (obj) => {
+
+
+
+
+        }).on("msg", async (obj) => {
+
+            const msgObject = { "step": null, "subject": null, "type": null, "from": null, "to": null, "data": {} };
+
+
+
+        });
+
         socketConnector.connect();
     }
     catch (error) {
