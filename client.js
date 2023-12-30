@@ -219,9 +219,9 @@ wsClient.on("connect", () => {
 
 const client = async () => {
 
-    console.log(dateTime() + " | -----------------------------------------------------------------------------------");
-    console.log(dateTime() + " |                 Fiskpay blockchain support for private gameservers                 ");
-    console.log(dateTime() + " | -----------------------------------------------------------------------------------");
+    console.log(dateTime() + " | ------------------------------------------------------------------------------------");
+    console.log(dateTime() + " |                   Fiskpay blockchain support for Lineage2 servers                   ");
+    console.log(dateTime() + " | ------------------------------------------------------------------------------------");
 
     try {
 
@@ -235,68 +235,65 @@ const client = async () => {
         console.log(dateTime() + " |");
         console.log(dateTime() + " | Fetching configuration file...");
 
-        const searchPath = (process.pkg && process.pkg.entrypoint) ? (".") : (path.dirname(process.argv[1]));
-        const connectorConfig = JSON.parse(fs.readFileSync(path.join(searchPath, ".config"), { flag: "r", encoding: "utf8" }));
+        const configFile = path.join((process.pkg && process.pkg.entrypoint) ? (".") : (path.dirname(process.argv[1])), ".config");
+        const connectorConfig = JSON.parse(fs.readFileSync(configFile, { flag: "r", encoding: "utf8" }));
 
-        console.log(dateTime() + " | File found at " + searchPath);
+        console.log(dateTime() + " | Configuration file: " + configFile);
 
         const serverConnector = new Connector(connectorConfig, remoteIPAddress);
-        let serverStatus = {};
-
-        const msgObject = { "step": null, "subject": null, "type": null, "from": null, "to": null, "data": {} };
-        const tokenSymbol = "LINK";
         const socketConnector = io("ws://127.0.0.1:42099", { "autoConnect": false, "reconnection": true, "reconnectionDelay": 5000, "reconnectionAttempts": Infinity }); // "wss://donation.fiskpay.com:42099" "ws://127.0.0.1:42099"
 
-        serverConnector.on("update", async (id, connected) => {
+        let serversStatus = {};
+        let chainStatus = false;
 
-            if (connected) {
+        serverConnector.on("updateServer", async (id, status) => {
 
-                if (serverStatus[id].v === undefined)
-                    serverStatus[id].v = await serverConnector.VALIDATE_SERVER(id);
+            if (status) {
 
-                if (serverStatus[id].v === true)
+                if (serversStatus[id].v === undefined)
+                    serversStatus[id].v = await serverConnector.VALIDATE_SERVER(id);
+
+                if (serversStatus[id].v === true)
                     console.log(dateTime() + " | Server `" + id + "` database connection established");
                 else if (await serverConnector.DISCONNECT_SERVER(id))
                     console.log(dateTime() + " | Server `" + id + "` database validation failed");
             }
             else {
 
-                if (serverStatus[id].v !== false)
+                if (serversStatus[id].v !== false)
                     setTimeout(async () => { await serverConnector.CONNECT_SERVER(id); }, 10000);
 
-                if (serverStatus[id].c !== false)
+                if (serversStatus[id].c !== false)
                     console.log(dateTime() + " | Server `" + id + "` database connection failed");
             }
 
-            serverStatus[id].c = connected;
+            serversStatus[id].c = status;
 
-            socketConnector.volatile.emit("serverStatus", serverStatus);
+            socketConnector.volatile.emit("serversStatus", serversStatus);
         });
 
         console.log(dateTime() + " |");
         console.log(dateTime() + " | Connecting to loginserver database...");
 
-        let cfg = connectorConfig["ls"];
-
-        if (!(cfg && cfg.dbName && cfg.dbPort && cfg.dbUsername && cfg.dbPassword && cfg.dbTableColumns && cfg.dbTableColumns.accounts && cfg.dbTableColumns.gameservers)) {
+        if (!(connectorConfig["ls"] && connectorConfig["ls"].dbName && connectorConfig["ls"].dbPort && connectorConfig["ls"].dbUsername && connectorConfig["ls"].dbPassword && connectorConfig["ls"].dbTableColumns && connectorConfig["ls"].dbTableColumns.accounts && connectorConfig["ls"].dbTableColumns.gameservers)) {
 
             console.log(dateTime() + " | Server `ls` improper configuration");
-            process.end();
+            process.exit();
         }
 
         await new Promise(async (resolve) => {
 
-            serverStatus["ls"] = {};
+            serversStatus["ls"] = {};
             await serverConnector.CONNECT_SERVER("ls");
 
             const interval = setInterval(() => {
 
-                if (serverStatus["ls"].v !== undefined) {
+                if (serversStatus["ls"].v !== undefined) {
 
                     clearInterval(interval);
 
-                    if (serverStatus["ls"].v !== true)
-                        process.end();
+                    if (serversStatus["ls"].v !== true)
+                        process.exit();
 
                     resolve(true);
                 }
@@ -308,32 +305,25 @@ const client = async () => {
 
         for (const id of await serverConnector.GET_IDS()) {
 
-            if ((!(/^\b([1-9]|[1-9][0-9]|1[01][0-9]|12[0-7])\b$/).test(id)))
-                console.log(dateTime() + " | Server `" + id + "` using improper ID value (skipped)");
-            else if (!(serverStatus[id] === undefined))
-                console.log(dateTime() + " | Server `" + id + "` using duplicate ID value (skipped)");
-
-            cfg = connectorConfig[id];
-
-            if (!(cfg && cfg.rewardId && cfg.dbName && cfg.dbIPAddress && cfg.dbPort && cfg.dbUsername && cfg.dbPassword && cfg.dbTableColumns && cfg.dbTableColumns.characters && cfg.dbTableColumns.items)) {
+            if (!(connectorConfig[id] && connectorConfig[id].rewardId && connectorConfig[id].dbName && connectorConfig[id].dbIPAddress && connectorConfig[id].dbPort && connectorConfig[id].dbUsername && connectorConfig[id].dbPassword && connectorConfig[id].dbTableColumns && connectorConfig[id].dbTableColumns.characters && connectorConfig[id].dbTableColumns.items)) {
 
                 console.log(dateTime() + " | Server `" + id + "` improper configuration");
-                process.end();
+                process.exit();
             }
 
             await new Promise(async (resolve) => {
 
-                serverStatus[id] = {};
+                serversStatus[id] = {};
                 await serverConnector.CONNECT_SERVER(id);
 
                 const interval = setInterval(() => {
 
-                    if (serverStatus[id].v !== undefined) {
+                    if (serversStatus[id].v !== undefined) {
 
                         clearInterval(interval);
 
-                        if (serverStatus[id].v !== true)
-                            process.end();
+                        if (serversStatus[id].v !== true)
+                            process.exit();
 
                         resolve(true);
                     }
@@ -344,6 +334,68 @@ const client = async () => {
         console.log(dateTime() + " |");
         console.log(dateTime() + " | Connecting to fiskpay service...");
 
+        const msgObject = { "step": null, "subject": null, "type": null, "from": null, "to": null, "data": {} };
+        const tokenSymbol = "LINK";
+
+        const connect = () => {
+
+            socketConnector.off();
+
+            socketConnector.once("connect", () => {
+
+                socketConnector.emit("login", [tokenSymbol, connectorConfig["client"].walletAddress, connectorConfig["client"].password, serversStatus], (result, status) => {
+
+                    chainStatus = status;
+
+                    if (result !== true) {
+
+                        console.log(dateTime() + " | " + result);
+                        process.exit()
+                    }
+
+                    socketConnector.on("disconnect", () => {
+
+                        console.log(dateTime() + " |");
+                        console.log(dateTime() + " | Connection to service lost");
+
+                        connect();
+                    }).on("chainStatus", (status) => {
+
+                        chainStatus = status;
+                    });
+
+                    console.log(dateTime() + " | Connection to service established");
+                    console.log(dateTime() + " |");
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                });
+            });
+        }
+
+        connect();
+        socketConnector.connect();
     }
     catch (error) {
 
@@ -356,7 +408,7 @@ const client = async () => {
         else
             console.log(dateTime() + " | " + error);
 
-        // process.exit()
+        process.exit();
     }
 }
 
