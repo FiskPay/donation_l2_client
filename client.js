@@ -338,15 +338,15 @@ const client = async () => {
 
         socketConnector.on("connect", () => {
 
-            socketConnector.emit("login", [tokenSymbol, connectorConfig["client"].walletAddress, connectorConfig["client"].password, serversStatus], (result, status) => {
+            socketConnector.emit("login", [tokenSymbol, connectorConfig["client"].walletAddress, connectorConfig["client"].password, serversStatus], (response) => {
 
-                if (result !== true) {
+                if (response.fail) {
 
-                    console.log(dateTime() + " | " + result);
+                    console.log(dateTime() + " | " + response.fail);
                     process.exit()
                 }
 
-                chainStatus = status;
+                chainStatus = response;
 
                 console.log(dateTime() + " | Connection to service established");
                 console.log(dateTime() + " |");
@@ -366,12 +366,22 @@ const client = async () => {
 
 
 
-        }).on("msg", async (obj) => {
+        }).on("request", async (requestData, requestCB) => {
 
-            const msgObject = { "step": null, "subject": null, "type": null, "from": null, "to": null, "data": {} };
+            if (chainStatus !== true)
+                requestCB({ "fail": "Chain unavailable" });
+            else if (requestData.id === "ls" && serversStatus["ls"].c !== true)
+                requestCB({ "fail": "Login database unavailable" });
+            else if (serversStatus[requestData.id].c !== true)
+                requestCB({ "fail": "Server " + requestData.id + " database unavailable" });
+            else if (requestData.data === undefined)
+                requestCB({ "fail": "Request data undefined" });
+            else {
 
+                const id = requestData.id;
+                const data = requestData.data;
 
-
+            }
         });
 
         socketConnector.connect();
