@@ -242,12 +242,9 @@ const client = async () => {
 
         console.log(dateTime() + " | Configuration file: " + configFile);
 
-        const serverConnector = new Connector(connectorConfig, remoteIPAddress);
-        const socketConnector = io("ws://127.0.0.1:42099", { "autoConnect": false, "reconnection": true, "reconnectionDelay": 5000, "reconnectionAttempts": Infinity }); // "wss://donation.fiskpay.com:42099" "ws://127.0.0.1:42099"
-
         let serversStatus = {};
-        let chainStatus = false;
 
+        const serverConnector = new Connector(connectorConfig, remoteIPAddress);
         serverConnector.on("updateServer", async (id, status) => {
 
             if (status) {
@@ -272,6 +269,117 @@ const client = async () => {
             serversStatus[id].c = status;
 
             socketConnector.emit("serversStatus", serversStatus);
+        });
+
+        let chainStatus = false;
+
+        const socketConnector = io("ws://127.0.0.1:42099", { "autoConnect": false, "reconnection": true, "reconnectionDelay": 5000, "reconnectionAttempts": Infinity }); // "wss://donation.fiskpay.com:42099" "ws://127.0.0.1:42099"
+        socketConnector.on("connect", () => {
+
+            socketConnector.emit("login", { "symbol": tokenSymbol, "wallet": connectorConfig["client"].walletAddress, "password": connectorConfig["client"].password, "status": serversStatus }, (responseObject) => {
+
+                if (responseObject.fail) {
+
+                    console.log(dateTime() + " | " + responseObject.fail);
+                    process.exit()
+                }
+
+                chainStatus = responseObject.data;
+
+                console.log(dateTime() + " | Connection to service established");
+                console.log(dateTime() + " |");
+            });
+        }).on("disconnect", () => {
+
+            console.log(dateTime() + " |");
+            console.log(dateTime() + " | Connection to service lost");
+        }).on("chainStatus", (status) => {
+
+            chainStatus = status;
+        }).on("logDeposit", async (obj) => {
+
+
+        }).on("logWithdrawal", async (obj) => {
+
+
+
+
+        }).on("request", async (requestObject, requestCB) => {
+
+            if (chainStatus !== true)
+                requestCB({ "fail": "Blockchain unavailable" });
+            else if (serversStatus["ls"].c !== true)
+                requestCB({ "fail": "Login database unavailable" });
+            else if (requestObject.id === undefined)
+                requestCB({ "fail": "Request id undefined" });
+            else if (serversStatus[requestObject.id].c !== true)
+                requestCB({ "fail": "Server `" + requestObject.id + "` database unavailable" });
+            else if (requestObject.subject === undefined)
+                requestCB({ "fail": "Request subject undefined" });
+            else if (requestObject.data === undefined)
+                requestCB({ "fail": "Request data undefined" });
+            else {
+
+                const data = requestObject.data;
+
+                switch (requestObject.subject) {
+
+                    case "getAccs": {
+
+                        if (data.walletAddress == undefined)
+                            requestCB({ "fail": "walletAddress undefined" });
+                        else
+                            requestCB({ "data": await serverConnector.GET_ACCOUNTS(data.walletAddress) });
+
+                        break;
+                    }
+                    case "addAcc": {
+
+                        if (data.username == undefined)
+                            requestCB({ "fail": "username undefined" });
+                        else if (data.password == undefined)
+                            requestCB({ "fail": "password undefined" });
+                        else if (data.walletAddress == undefined)
+                            requestCB({ "fail": "walletAddress undefined" });
+                        else
+                            requestCB({ "data": await serverConnector.ADD_ACCOUNT(data.username, data.password, data.walletAddress) });
+
+                        break;
+                    }
+                    case "removeAcc": {
+
+                        if (data.username == undefined)
+                            requestCB({ "fail": "username undefined" });
+                        else if (data.password == undefined)
+                            requestCB({ "fail": "password undefined" });
+                        else if (data.walletAddress == undefined)
+                            requestCB({ "fail": "walletAddress undefined" });
+                        else
+                            requestCB({ "data": await serverConnector.REMOVE_ACCOUNT(data.username, data.password, data.walletAddress) });
+
+                        break;
+                    }
+                    case "getChars": {
+
+                        if (data.username == undefined)
+                            requestCB({ "fail": "username undefined" });
+                        else
+                            requestCB({ "data": await serverConnector.GET_CHARACTERS(requestObject.id, data.username) });
+
+                        break;
+                    }
+                    case "asd": {
+
+                        console.log('Oranges are $0.59 a pound.');
+                        break;
+                    }
+                    default: {
+
+
+                    }
+                }
+
+            }
         });
 
         console.log(dateTime() + " |");
@@ -336,119 +444,18 @@ const client = async () => {
         console.log(dateTime() + " |");
         console.log(dateTime() + " | Connecting to fiskpay service...");
 
-        socketConnector.on("connect", () => {
-
-            socketConnector.emit("login", { "symbol": tokenSymbol, "wallet": connectorConfig["client"].walletAddress, "password": connectorConfig["client"].password, "status": serversStatus }, (responseObject) => {
-
-                if (responseObject.fail) {
-
-                    console.log(dateTime() + " | " + responseObject.fail);
-                    process.exit()
-                }
-
-                chainStatus = responseObject.data;
-
-                console.log(dateTime() + " | Connection to service established");
-                console.log(dateTime() + " |");
-            });
-        }).on("disconnect", () => {
-
-            console.log(dateTime() + " |");
-            console.log(dateTime() + " | Connection to service lost");
-        }).on("chainStatus", (status) => {
-
-            chainStatus = status;
-        }).on("logDeposit", async (obj) => {
-
-
-        }).on("logWithdrawal", async (obj) => {
-
-
-
-
-        }).on("request", async (requestObject, requestCB) => {
-
-            if (chainStatus !== true)
-                requestCB({ "fail": "Blockchain unavailable" });
-            else if (serversStatus["ls"].c !== true)
-                requestCB({ "fail": "Login database unavailable" });
-            else if (requestObject.id === undefined)
-                requestCB({ "fail": "Request id undefined" });
-            else if (serversStatus[requestObject.id].c !== true)
-                requestCB({ "fail": "Server `" + requestObject.id + "` database unavailable" });
-            else if (requestObject.subject === undefined)
-                requestCB({ "fail": "Request subject undefined" });
-            else if (requestObject.data === undefined)
-                requestCB({ "fail": "Request data undefined" });
-            else {
-
-                const id = requestData.id;
-                const data = requestData.data;
-                const subject = requestData.subject;
-
-                switch (subject) {
-
-                    case "getAccs": {
-
-                        if (data.walletAddress == undefined)
-                            requestCB({ "fail": "walletAddress undefined" });
-                        else
-                            requestCB({ "data": await serverConnector.GET_ACCOUNTS(data.walletAddress) });
-
-                        break;
-                    }
-                    case "addAcc": {
-
-                        if (data.username == undefined)
-                            requestCB({ "fail": "username undefined" });
-                        else if (data.password == undefined)
-                            requestCB({ "fail": "password undefined" });
-                        else if (data.walletAddress == undefined)
-                            requestCB({ "fail": "walletAddress undefined" });
-                        else
-                            requestCB({ "data": await serverConnector.ADD_ACCOUNT(data.username, data.password, data.walletAddress) });
-
-                        break;
-                    }
-                    case "removeAcc": {
-
-                        if (data.username == undefined)
-                            requestCB({ "fail": "username undefined" });
-                        else if (data.password == undefined)
-                            requestCB({ "fail": "password undefined" });
-                        else if (data.walletAddress == undefined)
-                            requestCB({ "fail": "walletAddress undefined" });
-                        else
-                            requestCB({ "data": await serverConnector.REMOVE_ACCOUNT(data.username, data.password, data.walletAddress) });
-
-                        break;
-                    }
-                    case "asd": {
-
-                        console.log('Oranges are $0.59 a pound.');
-                        break;
-                    }
-                    default: {
-
-
-                    }
-                }
-
-            }
-        });
-
         socketConnector.connect();
     }
     catch (error) {
 
         console.log(dateTime() + " | ------------------------------------ ERROR START -----------------------------------")
 
-        if (error.sqlMessage)
-            console.log(dateTime() + " | " + error.sqlMessage);
-        else if (error.message)
-            console.log(dateTime() + " | " + error.message);
-        else
-            console.log(dateTime() + " | " + error);
+        // if (error.sqlMessage)
+        //     console.log(dateTime() + " | " + error.sqlMessage);
+        // else if (error.message)
+        //    console.log(dateTime() + " | " + error.message);
+        // else
+        console.log(dateTime() + " | " + error);
 
         console.log(dateTime() + " | ------------------------------------- ERROR END ------------------------------------")
     }

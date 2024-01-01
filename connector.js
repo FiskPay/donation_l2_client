@@ -320,14 +320,14 @@ class Connector extends EventEmitter {
     GET_IDS = async () => {
 
         const connection = await this.#serverConnections["ls"].getConnection();
-        const serverId = this.#serverTables["ls"].gameservers.gameserverId;
+        const id = this.#serverTables["ls"].gameservers.gameserverId;
 
         let result = false;
 
         try {
 
-            result = (await connection.query("SELECT " + serverId + " FROM gameservers"))[0];
-            result = result.map(key => key[serverId])
+            result = (await connection.query("SELECT " + id + " FROM gameservers"))[0];
+            result = result.map(key => key[id])
         }
         finally {
 
@@ -335,7 +335,6 @@ class Connector extends EventEmitter {
 
             return result;
         }
-
     }
 
     GET_ACCOUNTS = async (ethAddress) => {
@@ -438,151 +437,314 @@ class Connector extends EventEmitter {
         }
     }
 
+    GET_CHARACTERS = async (serverId, username) => {
+
+        const connection = await this.#serverConnections[serverId].getConnection();
+        const acc = this.#serverTables[serverId].characters.accountUsername;
+        const nm = this.#serverTables[serverId].characters.characterName;
+
+        let result = false;
+
+        try {
+
+            result = (await connection.query("SELECT " + nm + " FROM characters WHERE " + acc + " = ?", [username]))[0];
+            result = result.map(key => key[nm])
+        }
+        finally {
+
+            connection.release();
+
+            return result;
+        }
+    }
+
     /*
+    
+GET_CHARACTER_BALANCE = async (character) => {
  
+    return await new Promise((resolve, reject) => {
  
-    GET_CHARACTERS = async (username) => {
+        this.#gameServer.query("SELECT i.count FROM items AS i, characters AS c WHERE c.obj_Id = i.owner_id AND c.char_name = ? AND i.item_id = ? AND i.loc = 'inventory'", [character, this.#reward], async (error, result) => {
  
-        return await new Promise((resolve, reject) => {
+            if (error)
+                return reject(error);
  
-            this.#gameServer.query("SELECT char_name FROM characters WHERE account_name = ?", [username], (error, result) => {
+            if (result && result.length == 1)
+                return resolve(result[0].count);
  
-                if (error)
-                    return reject(error);
+            if (result && result.length == 0)
+                return resolve(0);
  
-                const nR = result.length;
-                let characters = [];
- 
-                for (let i = 0; i < nR; i++)
-                    characters.push(result[i].char_name);
- 
-                return resolve(characters);
-            });
+            return reject(result);
         });
-    }
+    });
+}
  
-    GET_CHARACTER_BALANCE = async (character) => {
+ADD_REFUND_AND_DECREASE_BALANCE = async (serverid, character, amount, address) => { //SETS AND RETURNS THE REFUND TIMESTAMP
  
-        return await new Promise((resolve, reject) => {
+    return await new Promise((resolve, reject) => {
  
-            this.#gameServer.query("SELECT i.count FROM items AS i, characters AS c WHERE c.obj_Id = i.owner_id AND c.char_name = ? AND i.item_id = ? AND i.loc = 'inventory'", [character, this.#reward], async (error, result) => {
+        const refund = Math.floor(Date.now() / 1000) + 120;
  
-                if (error)
-                    return reject(error);
+        this.#gameServer.query("SELECT account_name, obj_Id FROM characters WHERE char_name = ?", [character], async (error, result) => {
  
-                if (result && result.length == 1)
-                    return resolve(result[0].count);
+            if (error)
+                return reject(error);
  
-                if (result && result.length == 0)
-                    return resolve(0);
+            if (!(result && result.length == 1))
+                return resolve(false);
  
-                return reject(result);
+            let ethAddress = await new Promise((res) => {
+ 
+                this.#loginServer.query("SELECT ethAddress FROM accounts WHERE login = ? AND ethAddress REGEXP '^0x[a-fA-F0-9]{40}$'", [result[0].account_name], (e, r) => {
+ 
+                    if (e)
+                        return res({ "error": e });
+ 
+                    if (r && r.length == 1)
+                        return res(r[0].ethAddress);
+ 
+                    return res(false);
+                });
             });
-        });
-    }
  
-    ADD_REFUND_AND_DECREASE_BALANCE = async (serverid, character, amount, address) => { //SETS AND RETURNS THE REFUND TIMESTAMP
+            if (ethAddress.error)
+                return reject(ethAddress.error);
  
-        return await new Promise((resolve, reject) => {
+            if (ethAddress === false || ethAddress != address)
+                return resolve(false);
  
-            const refund = Math.floor(Date.now() / 1000) + 120;
+            data = await new Promise((res) => {
  
-            this.#gameServer.query("SELECT account_name, obj_Id FROM characters WHERE char_name = ?", [character], async (error, result) => {
+                if (data == amount) {
  
-                if (error)
-                    return reject(error);
- 
-                if (!(result && result.length == 1))
-                    return resolve(false);
- 
-                let ethAddress = await new Promise((res) => {
- 
-                    this.#loginServer.query("SELECT ethAddress FROM accounts WHERE login = ? AND ethAddress REGEXP '^0x[a-fA-F0-9]{40}$'", [result[0].account_name], (e, r) => {
+                    this.#gameServer.query("DELETE FROM `items` WHERE `owner_id` = ? AND item_id = ? AND `loc` = 'inventory'", [result[0].obj_Id, this.#reward], (e) => {
  
                         if (e)
                             return res({ "error": e });
  
-                        if (r && r.length == 1)
-                            return res(r[0].ethAddress);
- 
-                        return res(false);
+                        return res(true);
                     });
-                });
+                }
+                else if (data > amount) {
  
-                if (ethAddress.error)
-                    return reject(ethAddress.error);
- 
-                if (ethAddress === false || ethAddress != address)
-                    return resolve(false);
- 
-                data = await new Promise((res) => {
- 
-                    if (data == amount) {
- 
-                        this.#gameServer.query("DELETE FROM `items` WHERE `owner_id` = ? AND item_id = ? AND `loc` = 'inventory'", [result[0].obj_Id, this.#reward], (e) => {
- 
-                            if (e)
-                                return res({ "error": e });
- 
-                            return res(true);
-                        });
-                    }
-                    else if (data > amount) {
- 
-                        this.#gameServer.query("UPDATE `items` SET `count` = `count` - ? WHERE `owner_id` = ? AND item_id = ? AND `loc` = 'inventory'", [amount, result[0].obj_Id, this.#reward], (e) => {
- 
-                            if (e)
-                                return res({ "error": e });
- 
-                            return res(true);
-                        });
-                    }
-                    else
-                        return res(false);
-                });
- 
-                if (data.error)
-                    return reject(data.error);
- 
-                if (data === false)
-                    return resolve(false);
- 
-                data = await new Promise((res) => {
- 
-                    this.#loginServer.query("INSERT INTO `fiskpay_temporary` (`server_id`, `owner`, `item`, `amount`, `refund`) VALUES (?, ?, ?, ?, ?)", [serverid, result[0].obj_Id, this.#reward, amount, refund], (e, r) => {
+                    this.#gameServer.query("UPDATE `items` SET `count` = `count` - ? WHERE `owner_id` = ? AND item_id = ? AND `loc` = 'inventory'", [amount, result[0].obj_Id, this.#reward], (e) => {
  
                         if (e)
                             return res({ "error": e });
  
-                        return res(refund);
+                        return res(true);
                     });
-                });
- 
-                if (data.error)
-                    return reject(data.error);
- 
-                return resolve(data);
+                }
+                else
+                    return res(false);
             });
+ 
+            if (data.error)
+                return reject(data.error);
+ 
+            if (data === false)
+                return resolve(false);
+ 
+            data = await new Promise((res) => {
+ 
+                this.#loginServer.query("INSERT INTO `fiskpay_temporary` (`server_id`, `owner`, `item`, `amount`, `refund`) VALUES (?, ?, ?, ?, ?)", [serverid, result[0].obj_Id, this.#reward, amount, refund], (e, r) => {
+ 
+                    if (e)
+                        return res({ "error": e });
+ 
+                    return res(refund);
+                });
+            });
+ 
+            if (data.error)
+                return reject(data.error);
+ 
+            return resolve(data);
         });
-    }
+    });
+}
  
-    INCREASE_BALANCE = async (character, amount) => {
+INCREASE_BALANCE = async (character, amount) => {
  
-        return await new Promise((resolve, reject) => {
+    return await new Promise((resolve, reject) => {
  
-            this.#gameServer.query("SELECT `obj_Id` FROM `characters` WHERE `char_name` = ?", [character], async (error, result) => {
+        this.#gameServer.query("SELECT `obj_Id` FROM `characters` WHERE `char_name` = ?", [character], async (error, result) => {
  
-                if (error)
-                    return reject(error);
+            if (error)
+                return reject(error);
  
-                if (!(result && result.length == 1))
-                    return resolve(false);
+            if (!(result && result.length == 1))
+                return resolve(false);
  
-                let data;
+            let data;
+ 
+            data = await new Promise((res) => {
+ 
+                this.#gameServer.query("SELECT `count` FROM `items` WHERE `owner_id` = ? AND item_id = ? AND `loc` = 'inventory'", [result[0].obj_Id, this.#reward], (e, r) => {
+ 
+                    if (e)
+                        return res({ "error": e });
+ 
+                    if (r && r.length == 1)
+                        return res(r[0].count);
+ 
+                    if (r && r.length == 0)
+                        return res(-1);
+ 
+                    return res(false);
+                });
+            });
+ 
+            if (data.error)
+                return reject(data.error);
+ 
+            if (data === false)
+                return resolve(false);
+ 
+            data = await new Promise(async (res) => {
+ 
+                if (data === -1) {
+ 
+                    let objID;
+ 
+                    do {
+ 
+                        objID = await new Promise((rsp) => {
+ 
+                            const testID = Math.floor(Math.random() * 2147483646);
+ 
+                            this.#gameServer.query("SELECT `object_id` FROM `items` WHERE `object_id` = ?", [testID], (e, r) => {
+ 
+                                if (!e && r && r.length == 0)
+                                    return rsp(testID);
+ 
+                                return rsp(false);
+                            });
+                        })
+ 
+                    } while (objID === false);
+ 
+                    this.#gameServer.query("INSERT INTO `items` (`owner_id`, `object_id`, `item_id`, `count`, `loc`) VALUES (?, ?, ?, ?, 'inventory')", [result[0].obj_Id, objID, this.#reward, amount], (e) => {
+ 
+                        if (e)
+                            return res({ "error": e })
+ 
+                        return res(true);
+                    });
+                }
+                else {
+ 
+                    this.#gameServer.query("UPDATE `items` SET `count` = `count` + ? WHERE `owner_id` = ? AND item_id = ? AND `loc` = 'inventory'", [amount, result[0].obj_Id, this.#reward], (e) => {
+ 
+                        if (e)
+                            return res({ "error": e })
+ 
+                        return res(true);
+                    });
+                }
+            });
+ 
+            if (data.error)
+                return reject(data.error);
+ 
+            return resolve(true);
+        });
+    });
+}
+ 
+REMOVE_REFUND = async (serverid, character, amount, refund) => {
+ 
+    return await new Promise((resolve, reject) => {
+ 
+        this.#gameServer.query("SELECT `obj_Id` FROM `characters` WHERE `char_name` = ?", [character], async (error, result) => {
+ 
+            if (error)
+                return reject(error);
+ 
+            if (!(result && result.length == 1))
+                return resolve(false);
+ 
+            let data;
+ 
+            data = await new Promise((res) => {
+ 
+                this.#loginServer.query("DELETE FROM `fiskpay_temporary` WHERE `server_id` = ? AND `owner` = ? AND item = ? AND `amount` = ? AND `refund` = ?", [serverid, result[0].obj_Id, this.#reward, amount, refund], (e) => {
+ 
+                    if (e)
+                        return res(e);
+ 
+                    return res(true);
+                });
+            });
+ 
+            if (data.error)
+                return reject(data.error);
+ 
+            return resolve(true);
+        });
+    });
+}
+ 
+LOG_DEPOSIT = async (txHash, serverid, character, from, symbol, amount) => {
+ 
+    return await new Promise((resolve, reject) => {
+ 
+        this.#loginServer.query("INSERT INTO `fiskpay_deposits` (`txHash`, `server_id`, `character`, `from`, `symbol`, `amount`) VALUES (?, ?, ?, ?, ?, ?)", [txHash, serverid, character, from, symbol, amount], (error) => {
+ 
+            if (error)
+                return reject(error);
+ 
+            return resolve(true);
+        });
+    });
+}
+ 
+LOG_WITHDRAWAL = async (txHash, serverid, character, to, symbol, amount) => {
+ 
+    return await new Promise((resolve) => {
+ 
+        this.#loginServer.query("INSERT INTO `fiskpay_withdrawals` (`txHash`, `server_id`, `character`, `to`, `symbol`, `amount`) VALUES (?, ?, ?, ?, ?, ?)", [txHash, serverid, character, to, symbol, amount], (error) => {
+ 
+            if (error)
+                return reject(error);
+ 
+            return resolve(true);
+        });
+    });
+}
+ 
+REFUND_EXPIRED = async () => {
+ 
+    const expireTh = Math.floor(Date.now() / 1000) - 180;
+ 
+    let expiredTxs = await this.#gameServer.query("SELECT owner, amount, refund FROM fiskpay_temporary WHERE item = ? AND refund < ? ", [this.#reward, expireTh]);
+ 
+    // this.#loginServer.query("INSERT INTO `fiskpay_balances` (`server_id`, `balance`, `nChars`) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE `balance` = ?, `nChars` = ?", [serverid, balance, nChars, balance, nChars]
+ 
+    expiredTxs[0].forEach(row => {
+ 
+        console.log(row.owner + " " + row.amount);
+    });
+ 
+    return true;
+    
+    return await new Promise((resolve, reject) => {
+ 
+        this.#loginServer.query("SELECT `owner`, `amount`, `refund` FROM `fiskpay_temporary` WHERE `server_id` = ? AND `item` = ? AND `refund` < ? ", [serverid, this.#reward, expireTh], async (error, result) => {
+ 
+            if (error)
+                return reject(error);
+ 
+            const nResult = result.length;
+ 
+            let data;
+ 
+            for (let i = 0; i < nResult; i++) {
  
                 data = await new Promise((res) => {
  
-                    this.#gameServer.query("SELECT `count` FROM `items` WHERE `owner_id` = ? AND item_id = ? AND `loc` = 'inventory'", [result[0].obj_Id, this.#reward], (e, r) => {
+                    this.#gameServer.query("SELECT `count` FROM `items` WHERE `owner_id` = ? AND item_id = ? AND `loc` = 'inventory'", [result[i].owner, this.#reward], (e, r) => {
  
                         if (e)
                             return res({ "error": e });
@@ -601,7 +763,7 @@ class Connector extends EventEmitter {
                     return reject(data.error);
  
                 if (data === false)
-                    return resolve(false);
+                    continue;
  
                 data = await new Promise(async (res) => {
  
@@ -626,7 +788,7 @@ class Connector extends EventEmitter {
  
                         } while (objID === false);
  
-                        this.#gameServer.query("INSERT INTO `items` (`owner_id`, `object_id`, `item_id`, `count`, `loc`) VALUES (?, ?, ?, ?, 'inventory')", [result[0].obj_Id, objID, this.#reward, amount], (e) => {
+                        this.#gameServer.query("INSERT INTO `items` (`owner_id`, `object_id`, `item_id`, `count`, `loc`) VALUES (?, ?, ?, ?, 'inventory')", [result[i].owner, objID, this.#reward, result[i].amount], (e) => {
  
                             if (e)
                                 return res({ "error": e })
@@ -636,7 +798,7 @@ class Connector extends EventEmitter {
                     }
                     else {
  
-                        this.#gameServer.query("UPDATE `items` SET `count` = `count` + ? WHERE `owner_id` = ? AND item_id = ? AND `loc` = 'inventory'", [amount, result[0].obj_Id, this.#reward], (e) => {
+                        this.#gameServer.query("UPDATE `items` SET `count` = `count` + ? WHERE `owner_id` = ? AND item_id = ? AND `loc` = 'inventory'", [result[i].amount, result[i].owner, this.#reward], (e) => {
  
                             if (e)
                                 return res({ "error": e })
@@ -649,31 +811,80 @@ class Connector extends EventEmitter {
                 if (data.error)
                     return reject(data.error);
  
-                return resolve(true);
-            });
-        });
-    }
- 
-    REMOVE_REFUND = async (serverid, character, amount, refund) => {
- 
-        return await new Promise((resolve, reject) => {
- 
-            this.#gameServer.query("SELECT `obj_Id` FROM `characters` WHERE `char_name` = ?", [character], async (error, result) => {
- 
-                if (error)
-                    return reject(error);
- 
-                if (!(result && result.length == 1))
-                    return resolve(false);
- 
-                let data;
- 
                 data = await new Promise((res) => {
  
-                    this.#loginServer.query("DELETE FROM `fiskpay_temporary` WHERE `server_id` = ? AND `owner` = ? AND item = ? AND `amount` = ? AND `refund` = ?", [serverid, result[0].obj_Id, this.#reward, amount, refund], (e) => {
+                    this.#loginServer.query("DELETE FROM `fiskpay_temporary` WHERE `server_id` = ? AND `owner` = ? AND item = ? AND `amount` = ? AND `refund` = ?", [serverid, result[i].owner, this.#reward, result[i].amount, result[i].refund], (e) => {
  
                         if (e)
-                            return res(e);
+                            return res({ "error": e });
+ 
+                        return res(true);
+                    });
+                });
+ 
+                if (data.error)
+                    return reject(data.error);
+            }
+ 
+            return resolve(true);
+        });
+    });
+}
+ 
+GET_GAMESERVER_BALANCE = async () => {
+ 
+    return await new Promise((resolve, reject) => {
+ 
+        this.#gameServer.query("SELECT SUM(`count`) AS balance FROM `items`", async (error, result) => {
+ 
+            if (error)
+                return reject(error);
+ 
+            if (result && result.length == 1)
+                return resolve((result[0].balance != null) ? (result[0].balance) : (0));
+ 
+            return resolve(false);
+        });
+    });
+}
+ 
+GET_LOGINSERVER_DATA = async (serverid) => {
+ 
+    return await new Promise((resolve, reject) => {
+ 
+        this.#loginServer.query("SELECT SUM(`balance`) AS balance, SUM(`nChars`) AS nChars FROM `fiskpay_balances`", async (error, result) => {
+ 
+            if (error)
+                return reject(error);
+ 
+            if (result && result.length == 1)
+                return resolve({ "balance": ((result[0].balance != null) ? (result[0].balance) : (0)), "nChars": ((result[0].nChars != null) ? (result[0].nChars) : (0)) });
+ 
+            return resolve(false);
+        });
+    });
+}
+ 
+UPDATE_LOGINSERVER_DATA = async (serverid) => {
+ 
+    return await new Promise((resolve, reject) => {
+ 
+        this.#gameServer.query("SELECT SUM(`count`) AS balance, COUNT(`count`) AS nChars  FROM `items`", async (error, result) => {
+ 
+            if (error)
+                return reject(error);
+ 
+            if (result && result.length == 1) {
+ 
+                const balance = ((result[0].balance != null) ? (result[0].balance) : (0));
+                const nChars = ((result[0].nChars != null) ? (result[0].nChars) : (0));
+ 
+                const data = await new Promise((res) => {
+ 
+                    this.#loginServer.query("INSERT INTO `fiskpay_balances` (`server_id`, `balance`, `nChars`) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE `balance` = ?, `nChars` = ?", [serverid, balance, nChars, balance, nChars], (e) => {
+ 
+                        if (e)
+                            return res({ "error": e });
  
                         return res(true);
                     });
@@ -683,225 +894,13 @@ class Connector extends EventEmitter {
                     return reject(data.error);
  
                 return resolve(true);
-            });
+            }
+ 
+            return resolve(false);
         });
-    }
- 
-    LOG_DEPOSIT = async (txHash, serverid, character, from, symbol, amount) => {
- 
-        return await new Promise((resolve, reject) => {
- 
-            this.#loginServer.query("INSERT INTO `fiskpay_deposits` (`txHash`, `server_id`, `character`, `from`, `symbol`, `amount`) VALUES (?, ?, ?, ?, ?, ?)", [txHash, serverid, character, from, symbol, amount], (error) => {
- 
-                if (error)
-                    return reject(error);
- 
-                return resolve(true);
-            });
-        });
-    }
- 
-    LOG_WITHDRAWAL = async (txHash, serverid, character, to, symbol, amount) => {
- 
-        return await new Promise((resolve) => {
- 
-            this.#loginServer.query("INSERT INTO `fiskpay_withdrawals` (`txHash`, `server_id`, `character`, `to`, `symbol`, `amount`) VALUES (?, ?, ?, ?, ?, ?)", [txHash, serverid, character, to, symbol, amount], (error) => {
- 
-                if (error)
-                    return reject(error);
- 
-                return resolve(true);
-            });
-        });
-    }
- 
-    REFUND_EXPIRED = async () => {
- 
-        const expireTh = Math.floor(Date.now() / 1000) - 180;
- 
-        let expiredTxs = await this.#gameServer.query("SELECT owner, amount, refund FROM fiskpay_temporary WHERE item = ? AND refund < ? ", [this.#reward, expireTh]);
- 
-        // this.#loginServer.query("INSERT INTO `fiskpay_balances` (`server_id`, `balance`, `nChars`) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE `balance` = ?, `nChars` = ?", [serverid, balance, nChars, balance, nChars]
- 
-        expiredTxs[0].forEach(row => {
- 
-            console.log(row.owner + " " + row.amount);
-        });
- 
-        return true;
-        
-        return await new Promise((resolve, reject) => {
-     
-            this.#loginServer.query("SELECT `owner`, `amount`, `refund` FROM `fiskpay_temporary` WHERE `server_id` = ? AND `item` = ? AND `refund` < ? ", [serverid, this.#reward, expireTh], async (error, result) => {
-     
-                if (error)
-                    return reject(error);
-     
-                const nResult = result.length;
-     
-                let data;
-     
-                for (let i = 0; i < nResult; i++) {
-     
-                    data = await new Promise((res) => {
-     
-                        this.#gameServer.query("SELECT `count` FROM `items` WHERE `owner_id` = ? AND item_id = ? AND `loc` = 'inventory'", [result[i].owner, this.#reward], (e, r) => {
-     
-                            if (e)
-                                return res({ "error": e });
-     
-                            if (r && r.length == 1)
-                                return res(r[0].count);
-     
-                            if (r && r.length == 0)
-                                return res(-1);
-     
-                            return res(false);
-                        });
-                    });
-     
-                    if (data.error)
-                        return reject(data.error);
-     
-                    if (data === false)
-                        continue;
-     
-                    data = await new Promise(async (res) => {
-     
-                        if (data === -1) {
-     
-                            let objID;
-     
-                            do {
-     
-                                objID = await new Promise((rsp) => {
-     
-                                    const testID = Math.floor(Math.random() * 2147483646);
-     
-                                    this.#gameServer.query("SELECT `object_id` FROM `items` WHERE `object_id` = ?", [testID], (e, r) => {
-     
-                                        if (!e && r && r.length == 0)
-                                            return rsp(testID);
-     
-                                        return rsp(false);
-                                    });
-                                })
-     
-                            } while (objID === false);
-     
-                            this.#gameServer.query("INSERT INTO `items` (`owner_id`, `object_id`, `item_id`, `count`, `loc`) VALUES (?, ?, ?, ?, 'inventory')", [result[i].owner, objID, this.#reward, result[i].amount], (e) => {
-     
-                                if (e)
-                                    return res({ "error": e })
-     
-                                return res(true);
-                            });
-                        }
-                        else {
-     
-                            this.#gameServer.query("UPDATE `items` SET `count` = `count` + ? WHERE `owner_id` = ? AND item_id = ? AND `loc` = 'inventory'", [result[i].amount, result[i].owner, this.#reward], (e) => {
-     
-                                if (e)
-                                    return res({ "error": e })
-     
-                                return res(true);
-                            });
-                        }
-                    });
-     
-                    if (data.error)
-                        return reject(data.error);
-     
-                    data = await new Promise((res) => {
-     
-                        this.#loginServer.query("DELETE FROM `fiskpay_temporary` WHERE `server_id` = ? AND `owner` = ? AND item = ? AND `amount` = ? AND `refund` = ?", [serverid, result[i].owner, this.#reward, result[i].amount, result[i].refund], (e) => {
-     
-                            if (e)
-                                return res({ "error": e });
-     
-                            return res(true);
-                        });
-                    });
-     
-                    if (data.error)
-                        return reject(data.error);
-                }
-     
-                return resolve(true);
-            });
-        });
-    }
- 
-    GET_GAMESERVER_BALANCE = async () => {
- 
-        return await new Promise((resolve, reject) => {
- 
-            this.#gameServer.query("SELECT SUM(`count`) AS balance FROM `items`", async (error, result) => {
- 
-                if (error)
-                    return reject(error);
- 
-                if (result && result.length == 1)
-                    return resolve((result[0].balance != null) ? (result[0].balance) : (0));
- 
-                return resolve(false);
-            });
-        });
-    }
- 
-    GET_LOGINSERVER_DATA = async (serverid) => {
- 
-        return await new Promise((resolve, reject) => {
- 
-            this.#loginServer.query("SELECT SUM(`balance`) AS balance, SUM(`nChars`) AS nChars FROM `fiskpay_balances`", async (error, result) => {
- 
-                if (error)
-                    return reject(error);
- 
-                if (result && result.length == 1)
-                    return resolve({ "balance": ((result[0].balance != null) ? (result[0].balance) : (0)), "nChars": ((result[0].nChars != null) ? (result[0].nChars) : (0)) });
- 
-                return resolve(false);
-            });
-        });
-    }
- 
-    UPDATE_LOGINSERVER_DATA = async (serverid) => {
- 
-        return await new Promise((resolve, reject) => {
- 
-            this.#gameServer.query("SELECT SUM(`count`) AS balance, COUNT(`count`) AS nChars  FROM `items`", async (error, result) => {
- 
-                if (error)
-                    return reject(error);
- 
-                if (result && result.length == 1) {
- 
-                    const balance = ((result[0].balance != null) ? (result[0].balance) : (0));
-                    const nChars = ((result[0].nChars != null) ? (result[0].nChars) : (0));
- 
-                    const data = await new Promise((res) => {
- 
-                        this.#loginServer.query("INSERT INTO `fiskpay_balances` (`server_id`, `balance`, `nChars`) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE `balance` = ?, `nChars` = ?", [serverid, balance, nChars, balance, nChars], (e) => {
- 
-                            if (e)
-                                return res({ "error": e });
- 
-                            return res(true);
-                        });
-                    });
- 
-                    if (data.error)
-                        return reject(data.error);
- 
-                    return resolve(true);
-                }
- 
-                return resolve(false);
-            });
-        });
-    }
-    */
+    });
+}
+*/
 }
 
 module.exports = Connector;
