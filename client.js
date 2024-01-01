@@ -338,15 +338,15 @@ const client = async () => {
 
         socketConnector.on("connect", () => {
 
-            socketConnector.emit("login", [tokenSymbol, connectorConfig["client"].walletAddress, connectorConfig["client"].password, serversStatus], (response) => {
+            socketConnector.emit("login", { "symbol": tokenSymbol, "wallet": connectorConfig["client"].walletAddress, "password": connectorConfig["client"].password, "status": serversStatus }, (responseObject) => {
 
-                if (response.fail) {
+                if (responseObject.fail) {
 
-                    console.log(dateTime() + " | " + response.fail);
+                    console.log(dateTime() + " | " + responseObject.fail);
                     process.exit()
                 }
 
-                chainStatus = response;
+                chainStatus = responseObject.data;
 
                 console.log(dateTime() + " | Connection to service established");
                 console.log(dateTime() + " |");
@@ -366,20 +366,73 @@ const client = async () => {
 
 
 
-        }).on("request", async (requestData, requestCB) => {
+        }).on("request", async (requestObject, requestCB) => {
 
             if (chainStatus !== true)
-                requestCB({ "fail": "Chain unavailable" });
-            else if (requestData.id === "ls" && serversStatus["ls"].c !== true)
+                requestCB({ "fail": "Blockchain unavailable" });
+            else if (serversStatus["ls"].c !== true)
                 requestCB({ "fail": "Login database unavailable" });
-            else if (serversStatus[requestData.id].c !== true)
-                requestCB({ "fail": "Server " + requestData.id + " database unavailable" });
-            else if (requestData.data === undefined)
+            else if (requestObject.id === undefined)
+                requestCB({ "fail": "Request id undefined" });
+            else if (serversStatus[requestObject.id].c !== true)
+                requestCB({ "fail": "Server `" + requestObject.id + "` database unavailable" });
+            else if (requestObject.subject === undefined)
+                requestCB({ "fail": "Request subject undefined" });
+            else if (requestObject.data === undefined)
                 requestCB({ "fail": "Request data undefined" });
             else {
 
                 const id = requestData.id;
                 const data = requestData.data;
+                const subject = requestData.subject;
+
+                switch (subject) {
+
+                    case "getAccs": {
+
+                        if (data.walletAddress == undefined)
+                            requestCB({ "fail": "walletAddress undefined" });
+                        else
+                            requestCB({ "data": await serverConnector.GET_ACCOUNTS(data.walletAddress) });
+
+                        break;
+                    }
+                    case "addAcc": {
+
+                        if (data.username == undefined)
+                            requestCB({ "fail": "username undefined" });
+                        else if (data.password == undefined)
+                            requestCB({ "fail": "password undefined" });
+                        else if (data.walletAddress == undefined)
+                            requestCB({ "fail": "walletAddress undefined" });
+                        else
+                            requestCB({ "data": await serverConnector.ADD_ACCOUNT(data.username, data.password, data.walletAddress) });
+
+                        break;
+                    }
+                    case "removeAcc": {
+
+                        if (data.username == undefined)
+                            requestCB({ "fail": "username undefined" });
+                        else if (data.password == undefined)
+                            requestCB({ "fail": "password undefined" });
+                        else if (data.walletAddress == undefined)
+                            requestCB({ "fail": "walletAddress undefined" });
+                        else
+                            requestCB({ "data": await serverConnector.REMOVE_ACCOUNT(data.username, data.password, data.walletAddress) });
+
+                        break;
+                    }
+                    case "asd": {
+
+                        console.log('Oranges are $0.59 a pound.');
+                        break;
+                    }
+                    default: {
+
+
+                    }
+                }
 
             }
         });
@@ -388,7 +441,7 @@ const client = async () => {
     }
     catch (error) {
 
-        console.log("fdg")
+        console.log(dateTime() + " | ------------------------------------ ERROR START -----------------------------------")
 
         if (error.sqlMessage)
             console.log(dateTime() + " | " + error.sqlMessage);
@@ -397,7 +450,7 @@ const client = async () => {
         else
             console.log(dateTime() + " | " + error);
 
-        process.exit();
+        console.log(dateTime() + " | ------------------------------------- ERROR END ------------------------------------")
     }
 }
 
