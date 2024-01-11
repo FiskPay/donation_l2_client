@@ -147,15 +147,12 @@ wsClient.on("connect", () => {
                     req.type = "req";
                     req.from = obj.to;
                     req.to = "srv";
-                    req.data.panel = obj.from;
-                    req.data.from = obj.data.from;
-                    req.data.to = obj.data.walletAddress;
-                    req.data.symbol = tokenSymbol;
+                    req.data.playerAddress= obj.data.walletAddress;
                     req.data.amount = obj.data.amount;
                     req.data.server = gsID;
                     req.data.character = obj.data.character;
-                    req.data.signedMessage = obj.data.signedMessage;
-                    req.data.refund = await connector.ADD_REFUND_AND_DECREASE_BALANCE(gsID, obj.data.character, obj.data.amount, obj.data.walletAddress);
+                    req.data.signature = obj.data.signature;
+                    req.data.refund = await connector.ADD_REFUND_AND_DECREASE_BALANCE(gsID, obj.data.character, obj.data.amount, obj.data.walletAddress, obj.data.refund);
 
                     if (req.data.refund !== false)
                         wsClient.emit("msg", req);
@@ -245,9 +242,9 @@ const client = async () => {
         let serversStatus = {};
 
         const serverConnector = new Connector(connectorConfig, remoteIPAddress);
-        serverConnector.on("updateServer", async (id, status) => {
+        serverConnector.on("updateServer", async (id, connected) => {
 
-            if (status) {
+            if (connected) {
 
                 if (serversStatus[id].v === undefined)
                     serversStatus[id].v = await serverConnector.VALIDATE_SERVER(id);
@@ -266,7 +263,7 @@ const client = async () => {
                     console.log(dateTime() + " | Server `" + id + "` database connection failed");
             }
 
-            serversStatus[id].c = status;
+            serversStatus[id].c = connected;
 
             socketConnector.emit("serversStatus", serversStatus);
         });
@@ -284,7 +281,7 @@ const client = async () => {
                     process.exit()
                 }
 
-                chainStatus = responseObject.data;
+                chainStatus = responseObject.data.chainStatus;
 
                 console.log(dateTime() + " | Connection to service established");
                 console.log(dateTime() + " |");

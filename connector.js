@@ -267,14 +267,14 @@ class Connector extends EventEmitter {
 
                 if (checks === 3) {
 
-                    await connection.query("SET autocommit = 0;");
-                    await connection.query("START TRANSACTION;");
+                    //await connection.query("SET autocommit = OFF;");
+                    //await connection.query("START TRANSACTION;");
                     await connection.query("ALTER TABLE accounts ADD COLUMN IF NOT EXISTS wallet_address VARCHAR(42) NOT NULL DEFAULT 'not linked';");
                     await connection.query("ALTER TABLE gameservers ADD COLUMN IF NOT EXISTS balance INT(10) UNSIGNED NOT NULL DEFAULT '0';");
                     await connection.query("CREATE TABLE IF NOT EXISTS fiskpay_deposits (server_id INT(11) NOT NULL, transaction_hash VARCHAR(66) NOT NULL, character_name VARCHAR(35) NOT NULL, wallet_address VARCHAR(42) NOT NULL, amount INT(10) UNSIGNED NOT NULL, PRIMARY KEY(transaction_hash)) ENGINE = InnoDB DEFAULT CHARSET = utf8;");
                     await connection.query("CREATE TABLE IF NOT EXISTS fiskpay_withdrawals (server_id INT(11) NOT NULL, transaction_hash VARCHAR(66) NOT NULL, character_name VARCHAR(35) NOT NULL, wallet_address VARCHAR(42) NOT NULL, amount INT(10) UNSIGNED NOT NULL, PRIMARY KEY(transaction_hash)) ENGINE = InnoDB DEFAULT CHARSET = utf8;");
                     await connection.query("CREATE TABLE IF NOT EXISTS fiskpay_temporary (server_id INT(11) NOT NULL, character_id INT(10) NOT NULL, amount INT(10) UNSIGNED NOT NULL, refund INT(10) UNSIGNED NOT NULL, PRIMARY KEY(server_id, character_id, refund)) ENGINE = InnoDB DEFAULT CHARSET = utf8;");
-                    await connection.query("COMMIT;");
+                    //await connection.query("COMMIT;");
 
                     this.#serverTables["ls"] = lsConfig;
 
@@ -340,14 +340,14 @@ class Connector extends EventEmitter {
     GET_ACCOUNTS = async (ethAddress) => {
 
         const connection = await this.#serverConnections["ls"].getConnection();
-        const lg = this.#serverTables["ls"].accounts.accountUsername;
+        const usr = this.#serverTables["ls"].accounts.accountUsername;
 
         let result = false;
 
         try {
 
-            result = (await connection.query("SELECT " + lg + " FROM accounts WHERE ethAddress = ?", [ethAddress]))[0];
-            result = result.map(key => key[lg])
+            result = (await connection.query("SELECT " + usr + " FROM accounts WHERE ethAddress = ?", [ethAddress]))[0];
+            result = result.map(key => key[usr])
         }
         finally {
 
@@ -360,7 +360,7 @@ class Connector extends EventEmitter {
     ADD_ACCOUNT = async (username, password, ethAddress) => {
 
         const connection = await this.#serverConnections["ls"].getConnection();
-        const lg = this.#serverTables["ls"].accounts.accountUsername;
+        const usr = this.#serverTables["ls"].accounts.accountUsername;
         const psw = this.#serverTables["ls"].accounts.accountPassword;
 
         let result = false;
@@ -370,7 +370,7 @@ class Connector extends EventEmitter {
             await connection.query("SET autocommit = 0;");
             await connection.query("START TRANSACTION;");
 
-            result = (await connection.query("SELECT " + psw + " FROM accounts WHERE " + lg + " = ?", [username]))[0];
+            result = (await connection.query("SELECT " + psw + " FROM accounts WHERE " + usr + " = ?", [username]))[0];
 
             if (!validatePassword(password, result[psw])) {
 
@@ -380,7 +380,7 @@ class Connector extends EventEmitter {
 
             else {
 
-                result = (await connection.query("UPDATE accounts SET ethAddress = ? WHERE " + ls + " = ? AND ethAddress = 'not linked' AND " + psw + " = ?", [ethAddress, username, result[psw]]))[0];
+                result = (await connection.query("UPDATE accounts SET ethAddress = ? WHERE " + usr + " = ? AND ethAddress = 'not linked' AND " + psw + " = ?", [ethAddress, username, result[psw]]))[0];
                 result = (result.changedRows == 1);
 
                 if (result)
@@ -400,7 +400,7 @@ class Connector extends EventEmitter {
     REMOVE_ACCOUNT = async (username, password, ethAddress) => {
 
         const connection = await this.#serverConnections["ls"].getConnection();
-        const lg = this.#serverTables["ls"].accounts.accountUsername;
+        const usr = this.#serverTables["ls"].accounts.accountUsername;
         const psw = this.#serverTables["ls"].accounts.accountPassword;
 
         let result = false;
@@ -410,7 +410,7 @@ class Connector extends EventEmitter {
             await connection.query("SET autocommit = 0;");
             await connection.query("START TRANSACTION;");
 
-            result = (await connection.query("SELECT " + psw + " FROM accounts WHERE " + lg + " = ?", [username]))[0];
+            result = (await connection.query("SELECT " + psw + " FROM accounts WHERE " + usr + " = ?", [username]))[0];
 
             if (!validatePassword(password, result[psw])) {
 
@@ -420,7 +420,7 @@ class Connector extends EventEmitter {
 
             else {
 
-                result = (await connection.query("UPDATE accounts SET ethAddress = 'not linked' WHERE " + lg + " = ? AND ethAddress = ? AND " + psw + " = ?", [username, ethAddress, result[psw]]))[0];
+                result = (await connection.query("UPDATE accounts SET ethAddress = 'not linked' WHERE " + usr + " = ? AND ethAddress = ? AND " + psw + " = ?", [username, ethAddress, result[psw]]))[0];
                 result = (result.changedRows == 1);
 
                 if (result)
@@ -437,11 +437,11 @@ class Connector extends EventEmitter {
         }
     }
 
-    GET_CHARACTERS = async (serverId, username) => {
+    GET_CHARACTERS = async (id, username) => {
 
-        const connection = await this.#serverConnections[serverId].getConnection();
-        const acc = this.#serverTables[serverId].characters.accountUsername;
-        const nm = this.#serverTables[serverId].characters.characterName;
+        const connection = await this.#serverConnections[id].getConnection();
+        const acc = this.#serverTables[id].characters.accountUsername;
+        const nm = this.#serverTables[id].characters.characterName;
 
         let result = false;
 
@@ -480,12 +480,10 @@ GET_CHARACTER_BALANCE = async (character) => {
     });
 }
  
-ADD_REFUND_AND_DECREASE_BALANCE = async (serverid, character, amount, address) => { //SETS AND RETURNS THE REFUND TIMESTAMP
+ADD_REFUND_AND_DECREASE_BALANCE = async (serverid, character, amount, address, refund) => {
  
     return await new Promise((resolve, reject) => {
- 
-        const refund = Math.floor(Date.now() / 1000) + 120;
- 
+  
         this.#gameServer.query("SELECT account_name, obj_Id FROM characters WHERE char_name = ?", [character], async (error, result) => {
  
             if (error)
@@ -716,9 +714,9 @@ LOG_WITHDRAWAL = async (txHash, serverid, character, to, symbol, amount) => {
  
 REFUND_EXPIRED = async () => {
  
-    const expireTh = Math.floor(Date.now() / 1000) - 180;
+    const now = Math.floor(Date.now() / 1000);
  
-    let expiredTxs = await this.#gameServer.query("SELECT owner, amount, refund FROM fiskpay_temporary WHERE item = ? AND refund < ? ", [this.#reward, expireTh]);
+    let expiredTxs = await this.#gameServer.query("SELECT owner, amount, refund FROM fiskpay_temporary WHERE item = ? AND refund < ? ", [this.#reward, now]);
  
     // this.#loginServer.query("INSERT INTO `fiskpay_balances` (`server_id`, `balance`, `nChars`) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE `balance` = ?, `nChars` = ?", [serverid, balance, nChars, balance, nChars]
  
@@ -731,7 +729,7 @@ REFUND_EXPIRED = async () => {
     
     return await new Promise((resolve, reject) => {
  
-        this.#loginServer.query("SELECT `owner`, `amount`, `refund` FROM `fiskpay_temporary` WHERE `server_id` = ? AND `item` = ? AND `refund` < ? ", [serverid, this.#reward, expireTh], async (error, result) => {
+        this.#loginServer.query("SELECT `owner`, `amount`, `refund` FROM `fiskpay_temporary` WHERE `server_id` = ? AND `item` = ? AND `refund` < ? ", [serverid, this.#reward, now], async (error, result) => {
  
             if (error)
                 return reject(error);
