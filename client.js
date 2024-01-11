@@ -11,21 +11,6 @@ function suppresser(event, error) { return ((event === 'warning' && error.name =
 process.emit = suppresser;
 //
 
-const dateTime = () => {
-
-    const currentdate = new Date();
-
-    const datetime = ((currentdate.getDate() > 9) ? (currentdate.getDate()) : ("0" + currentdate.getDate())) + "/"
-        + ((currentdate.getMonth() > 8) ? (currentdate.getMonth() + 1) : ("0" + (currentdate.getMonth() + 1))) + "/"
-        + (currentdate.getFullYear()) + " @ "
-        + ((currentdate.getHours() > 9) ? (currentdate.getHours()) : ("0" + currentdate.getHours())) + ":"
-        + ((currentdate.getMinutes() > 9) ? (currentdate.getMinutes()) : ("0" + currentdate.getMinutes())) + ":"
-        + ((currentdate.getSeconds() > 9) ? (currentdate.getSeconds()) : ("0" + currentdate.getSeconds()));
-
-    return datetime;
-}
-
-
 /*
  
             await connector.REFUND_EXPIRED();
@@ -214,7 +199,21 @@ wsClient.on("connect", () => {
 */
 
 
-const client = async () => {
+(async () => {
+
+    const dateTime = () => {
+
+        const currentdate = new Date();
+
+        const datetime = ((currentdate.getDate() > 9) ? (currentdate.getDate()) : ("0" + currentdate.getDate())) + "/"
+            + ((currentdate.getMonth() > 8) ? (currentdate.getMonth() + 1) : ("0" + (currentdate.getMonth() + 1))) + "/"
+            + (currentdate.getFullYear()) + " @ "
+            + ((currentdate.getHours() > 9) ? (currentdate.getHours()) : ("0" + currentdate.getHours())) + ":"
+            + ((currentdate.getMinutes() > 9) ? (currentdate.getMinutes()) : ("0" + currentdate.getMinutes())) + ":"
+            + ((currentdate.getSeconds() > 9) ? (currentdate.getSeconds()) : ("0" + currentdate.getSeconds()));
+
+        return datetime;
+    }
 
     console.log(dateTime() + " | ------------------------------------------------------------------------------------");
     console.log(dateTime() + " |                   Fiskpay blockchain support for Lineage2 servers                   ");
@@ -240,8 +239,33 @@ const client = async () => {
         console.log(dateTime() + " | Configuration file: " + configFile);
 
         let serversStatus = {};
+        let chainStatus = false;
+
+        const validateServer = async (id) => {
+
+            return await new Promise(async (resolve) => {
+
+                serversStatus[id] = {};
+                await serverConnector.CONNECT_SERVER(id);
+
+                const interval = setInterval(() => {
+
+                    if (serversStatus[id].v !== undefined) {
+
+                        clearInterval(interval);
+
+                        if (serversStatus[id].v !== true)
+                            process.exit();
+
+                        resolve(true);
+                    }
+                }, 250);
+            });
+        }
 
         const serverConnector = new Connector(connectorConfig, remoteIPAddress);
+        const socketConnector = io("ws://127.0.0.1:42099", { "autoConnect": false, "reconnection": true, "reconnectionDelay": 5000, "reconnectionAttempts": Infinity }); // "wss://donation.fiskpay.com:42099" "ws://127.0.0.1:42099"
+
         serverConnector.on("updateServer", async (id, connected) => {
 
             if (connected) {
@@ -268,9 +292,6 @@ const client = async () => {
             socketConnector.emit("serversStatus", serversStatus);
         });
 
-        let chainStatus = false;
-
-        const socketConnector = io("ws://127.0.0.1:42099", { "autoConnect": false, "reconnection": true, "reconnectionDelay": 5000, "reconnectionAttempts": Infinity }); // "wss://donation.fiskpay.com:42099" "ws://127.0.0.1:42099"
         socketConnector.on("connect", () => {
 
             socketConnector.emit("login", { "symbol": tokenSymbol, "wallet": connectorConfig["client"].walletAddress, "password": connectorConfig["client"].password, "status": serversStatus }, (responseObject) => {
@@ -388,24 +409,7 @@ const client = async () => {
             process.exit();
         }
 
-        await new Promise(async (resolve) => {
-
-            serversStatus["ls"] = {};
-            await serverConnector.CONNECT_SERVER("ls");
-
-            const interval = setInterval(() => {
-
-                if (serversStatus["ls"].v !== undefined) {
-
-                    clearInterval(interval);
-
-                    if (serversStatus["ls"].v !== true)
-                        process.exit();
-
-                    resolve(true);
-                }
-            }, 250);
-        });
+        await validateServer("ls");
 
         console.log(dateTime() + " |");
         console.log(dateTime() + " | Connecting to gameserver(s) database...");
@@ -418,24 +422,7 @@ const client = async () => {
                 process.exit();
             }
 
-            await new Promise(async (resolve) => {
-
-                serversStatus[id] = {};
-                await serverConnector.CONNECT_SERVER(id);
-
-                const interval = setInterval(() => {
-
-                    if (serversStatus[id].v !== undefined) {
-
-                        clearInterval(interval);
-
-                        if (serversStatus[id].v !== true)
-                            process.exit();
-
-                        resolve(true);
-                    }
-                }, 250);
-            });
+            await validateServer(id);
         }
 
         console.log(dateTime() + " |");
@@ -456,6 +443,4 @@ const client = async () => {
 
         console.log(dateTime() + " | ------------------------------------- ERROR END ------------------------------------")
     }
-}
-
-client();
+})();
