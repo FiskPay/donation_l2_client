@@ -221,226 +221,217 @@ wsClient.on("connect", () => {
 
     const tokenSymbol = "LINK";
 
-    try {
+    console.log(dateTime() + " |");
+    console.log(dateTime() + " | Fetching remote IP address...");
 
-        console.log(dateTime() + " |");
-        console.log(dateTime() + " | Fetching remote IP address...");
+    const remoteIPAddress = (await (await fetch("https://api.ipify.org/?format=json")).json()).ip;
 
-        const remoteIPAddress = (await (await fetch("https://api.ipify.org/?format=json")).json()).ip;
+    console.log(dateTime() + " | Remote IP address: " + remoteIPAddress);
 
-        console.log(dateTime() + " | Remote IP address: " + remoteIPAddress);
+    console.log(dateTime() + " |");
+    console.log(dateTime() + " | Fetching configuration file...");
 
-        console.log(dateTime() + " |");
-        console.log(dateTime() + " | Fetching configuration file...");
+    const configFile = path.join((process.pkg && process.pkg.entrypoint) ? (".") : (path.dirname(process.argv[1])), ".config");
+    const connectorConfig = JSON.parse(fs.readFileSync(configFile, { flag: "r", encoding: "utf8" }));
 
-        const configFile = path.join((process.pkg && process.pkg.entrypoint) ? (".") : (path.dirname(process.argv[1])), ".config");
-        const connectorConfig = JSON.parse(fs.readFileSync(configFile, { flag: "r", encoding: "utf8" }));
+    console.log(dateTime() + " | Configuration file: " + configFile);
 
-        console.log(dateTime() + " | Configuration file: " + configFile);
+    let serversStatus = {};
+    let onlineServers = [];
 
-        let serversStatus = {};
-        let chainStatus = false;
+    let updateServerTimeout;
 
-        const validateServer = async (id) => {
+    const validateServer = async (id) => {
 
-            return await new Promise(async (resolve) => {
+        return await new Promise(async (resolve) => {
 
-                serversStatus[id] = {};
-                await serverConnector.CONNECT_SERVER(id);
+            serversStatus[id] = {};
+            await serverConnector.CONNECT_SERVER(id);
 
-                const interval = setInterval(() => {
+            const interval = setInterval(() => {
 
-                    if (serversStatus[id].v !== undefined) {
+                if (serversStatus[id].v !== undefined) {
 
-                        clearInterval(interval);
+                    clearInterval(interval);
 
-                        if (serversStatus[id].v !== true)
-                            process.exit();
+                    if (serversStatus[id].v !== true)
+                        process.exit();
 
-                        resolve(true);
-                    }
-                }, 250);
-            });
+                    resolve(true);
+                }
+            }, 250);
+        });
+    }
+
+    const serverConnector = new Connector(connectorConfig, remoteIPAddress);
+    const socketConnector = io("ws://127.0.0.1:42099", { "autoConnect": false, "reconnection": true, "reconnectionDelay": 5000, "reconnectionAttempts": Infinity }); // "wss://ds.fiskpay.com:42099" "ws://127.0.0.1:42099"
+
+    serverConnector.on("updateServer", async (id, connected) => {
+
+        if (connected) {
+
+            if (serversStatus[id].v === undefined)
+                serversStatus[id].v = await serverConnector.VALIDATE_SERVER(id);
+
+            if (serversStatus[id].v === true)
+                console.log(dateTime() + " | Server `" + id + "` database connection established");
+            else if (await serverConnector.DISCONNECT_SERVER(id))
+                console.log(dateTime() + " | Server `" + id + "` database validation failed");
+        }
+        else {
+
+            if (serversStatus[id].v !== false)
+                setTimeout(async () => { await serverConnector.CONNECT_SERVER(id); }, 10000);
+
+            if (serversStatus[id].c !== false)
+                console.log(dateTime() + " | Server `" + id + "` database connection failed");
         }
 
-        const serverConnector = new Connector(connectorConfig, remoteIPAddress);
-        const socketConnector = io("ws://127.0.0.1:42099", { "autoConnect": false, "reconnection": true, "reconnectionDelay": 5000, "reconnectionAttempts": Infinity }); // "wss://donation.fiskpay.com:42099" "ws://127.0.0.1:42099"
+        if (serversStatus[id].c !== (serversStatus[id].c = connected)) {
 
-        serverConnector.on("updateServer", async (id, connected) => {
+            clearTimeout(updateServerTimeout);
 
-            if (connected) {
+            let tmpServers = [];
 
-                if (serversStatus[id].v === undefined)
-                    serversStatus[id].v = await serverConnector.VALIDATE_SERVER(id);
+            if (serversStatus["ls"].v === true && serversStatus["ls"].c === true) {
 
-                if (serversStatus[id].v === true)
-                    console.log(dateTime() + " | Server `" + id + "` database connection established");
-                else if (await serverConnector.DISCONNECT_SERVER(id))
-                    console.log(dateTime() + " | Server `" + id + "` database validation failed");
-            }
-            else {
+                for (let server in serversStatus) {
 
-                if (serversStatus[id].v !== false)
-                    setTimeout(async () => { await serverConnector.CONNECT_SERVER(id); }, 10000);
-
-                if (serversStatus[id].c !== false)
-                    console.log(dateTime() + " | Server `" + id + "` database connection failed");
-            }
-
-            serversStatus[id].c = connected;
-
-            socketConnector.emit("serversStatus", serversStatus);
-        });
-
-        socketConnector.on("connect", () => {
-
-            socketConnector.emit("login", { "symbol": tokenSymbol, "wallet": connectorConfig["client"].walletAddress, "password": connectorConfig["client"].password, "status": serversStatus }, (responseObject) => {
-
-                if (responseObject.fail) {
-
-                    console.log(dateTime() + " | " + responseObject.fail);
-                    process.exit()
+                    if (server !== "ls" && serversStatus[server].v === true && serversStatus[server].c === true)
+                        tmpServers.push(server);
                 }
+            }
 
-                chainStatus = responseObject.data.chainStatus;
+            onlineServers = tmpServers;
 
-                console.log(dateTime() + " | Connection to service established");
-                console.log(dateTime() + " |");
-            });
-        }).on("disconnect", () => {
+            updateServerTimeout = setTimeout(() => {
 
+                socketConnector.volatile.emit("onlineServers", onlineServers);
+            }, 50)
+        }
+    });
+
+    socketConnector.on("connect", () => {
+
+        socketConnector.emit("login", { "symbol": tokenSymbol, "wallet": connectorConfig["client"].walletAddress, "password": connectorConfig["client"].password, "servers": onlineServers }, (responseObject) => {
+
+            if (responseObject.fail) {
+
+                console.log(dateTime() + " | " + responseObject.fail);
+                process.exit()
+            }
+
+            console.log(dateTime() + " | Connection to service established");
             console.log(dateTime() + " |");
-            console.log(dateTime() + " | Connection to service lost");
-        }).on("chainStatus", (status) => {
-
-            chainStatus = status;
-        }).on("logDeposit", async (obj) => {
-
-
-        }).on("logWithdrawal", async (obj) => {
-
-
-
-
-        }).on("request", async (requestObject, requestCB) => {
-
-            if (chainStatus !== true)
-                requestCB({ "fail": "Blockchain unavailable" });
-            else if (serversStatus["ls"].c !== true)
-                requestCB({ "fail": "Login database unavailable" });
-            else if (requestObject.id === undefined)
-                requestCB({ "fail": "Request id undefined" });
-            else if (serversStatus[requestObject.id].c !== true)
-                requestCB({ "fail": "Server `" + requestObject.id + "` database unavailable" });
-            else if (requestObject.subject === undefined)
-                requestCB({ "fail": "Request subject undefined" });
-            else if (requestObject.data === undefined)
-                requestCB({ "fail": "Request data undefined" });
-            else {
-
-                const data = requestObject.data;
-
-                switch (requestObject.subject) {
-
-                    case "getAccs": {
-
-                        if (data.walletAddress == undefined)
-                            requestCB({ "fail": "walletAddress undefined" });
-                        else
-                            requestCB({ "data": await serverConnector.GET_ACCOUNTS(data.walletAddress) });
-
-                        break;
-                    }
-                    case "addAcc": {
-
-                        if (data.username == undefined)
-                            requestCB({ "fail": "username undefined" });
-                        else if (data.password == undefined)
-                            requestCB({ "fail": "password undefined" });
-                        else if (data.walletAddress == undefined)
-                            requestCB({ "fail": "walletAddress undefined" });
-                        else
-                            requestCB({ "data": await serverConnector.ADD_ACCOUNT(data.username, data.password, data.walletAddress) });
-
-                        break;
-                    }
-                    case "removeAcc": {
-
-                        if (data.username == undefined)
-                            requestCB({ "fail": "username undefined" });
-                        else if (data.password == undefined)
-                            requestCB({ "fail": "password undefined" });
-                        else if (data.walletAddress == undefined)
-                            requestCB({ "fail": "walletAddress undefined" });
-                        else
-                            requestCB({ "data": await serverConnector.REMOVE_ACCOUNT(data.username, data.password, data.walletAddress) });
-
-                        break;
-                    }
-                    case "getChars": {
-
-                        if (data.username == undefined)
-                            requestCB({ "fail": "username undefined" });
-                        else
-                            requestCB({ "data": await serverConnector.GET_CHARACTERS(requestObject.id, data.username) });
-
-                        break;
-                    }
-                    case "asd": {
-
-                        console.log('Oranges are $0.59 a pound.');
-                        break;
-                    }
-                    default: {
-
-
-                    }
-                }
-
-            }
         });
+    }).on("disconnect", () => {
 
         console.log(dateTime() + " |");
-        console.log(dateTime() + " | Connecting to loginserver database...");
+        console.log(dateTime() + " | Connection to service lost");
+    }).on("logDeposit", async (obj) => {
 
-        if (!(connectorConfig["ls"] && connectorConfig["ls"].dbName && connectorConfig["ls"].dbPort && connectorConfig["ls"].dbUsername && connectorConfig["ls"].dbPassword && connectorConfig["ls"].dbTableColumns && connectorConfig["ls"].dbTableColumns.accounts && connectorConfig["ls"].dbTableColumns.gameservers)) {
 
-            console.log(dateTime() + " | Server `ls` improper configuration");
+    }).on("logWithdrawal", async (obj) => {
+
+
+
+
+    }).on("request", async (requestObject, requestCB) => {
+
+        if (serversStatus["ls"].c !== true)
+            requestCB({ "fail": "Login database unavailable" });
+        else if (serversStatus[requestObject.id].c !== true)
+            requestCB({ "fail": "Server `" + requestObject.id + "` database unavailable" });
+        else {
+
+            const data = requestObject.data;
+
+            switch (requestObject.subject) {
+
+                case "getAccs": {
+
+                    if (data.walletAddress == undefined)
+                        requestCB({ "fail": "walletAddress undefined" });
+                    else
+                        requestCB({ "data": await serverConnector.GET_ACCOUNTS(data.walletAddress) });
+
+                    break;
+                }
+                case "addAcc": {
+
+                    if (data.username == undefined)
+                        requestCB({ "fail": "username undefined" });
+                    else if (data.password == undefined)
+                        requestCB({ "fail": "password undefined" });
+                    else if (data.walletAddress == undefined)
+                        requestCB({ "fail": "walletAddress undefined" });
+                    else
+                        requestCB({ "data": await serverConnector.ADD_ACCOUNT(data.username, data.password, data.walletAddress) });
+
+                    break;
+                }
+                case "removeAcc": {
+
+                    if (data.username == undefined)
+                        requestCB({ "fail": "username undefined" });
+                    else if (data.password == undefined)
+                        requestCB({ "fail": "password undefined" });
+                    else if (data.walletAddress == undefined)
+                        requestCB({ "fail": "walletAddress undefined" });
+                    else
+                        requestCB({ "data": await serverConnector.REMOVE_ACCOUNT(data.username, data.password, data.walletAddress) });
+
+                    break;
+                }
+                case "getChars": {
+
+                    if (data.username == undefined)
+                        requestCB({ "fail": "username undefined" });
+                    else
+                        requestCB({ "data": await serverConnector.GET_CHARACTERS(requestObject.id, data.username) });
+
+                    break;
+                }
+                case "asd": {
+
+                    console.log('Oranges are $0.59 a pound.');
+                    break;
+                }
+                default: {
+
+
+                }
+            }
+        }
+    });
+
+    console.log(dateTime() + " |");
+    console.log(dateTime() + " | Connecting to loginserver database...");
+
+    if (!(connectorConfig["ls"] && connectorConfig["ls"].dbName && connectorConfig["ls"].dbPort && connectorConfig["ls"].dbUsername && connectorConfig["ls"].dbPassword && connectorConfig["ls"].dbTableColumns && connectorConfig["ls"].dbTableColumns.accounts && connectorConfig["ls"].dbTableColumns.gameservers)) {
+
+        console.log(dateTime() + " | Server `ls` improper configuration");
+        process.exit();
+    }
+
+    await validateServer("ls");
+
+    console.log(dateTime() + " |");
+    console.log(dateTime() + " | Connecting to gameserver(s) database...");
+
+    for (const id of await serverConnector.GET_IDS()) {
+
+        if (!(connectorConfig[id] && connectorConfig[id].rewardId && connectorConfig[id].dbName && connectorConfig[id].dbIPAddress && connectorConfig[id].dbPort && connectorConfig[id].dbUsername && connectorConfig[id].dbPassword && connectorConfig[id].dbTableColumns && connectorConfig[id].dbTableColumns.characters && connectorConfig[id].dbTableColumns.items)) {
+
+            console.log(dateTime() + " | Server `" + id + "` improper configuration");
             process.exit();
         }
 
-        await validateServer("ls");
-
-        console.log(dateTime() + " |");
-        console.log(dateTime() + " | Connecting to gameserver(s) database...");
-
-        for (const id of await serverConnector.GET_IDS()) {
-
-            if (!(connectorConfig[id] && connectorConfig[id].rewardId && connectorConfig[id].dbName && connectorConfig[id].dbIPAddress && connectorConfig[id].dbPort && connectorConfig[id].dbUsername && connectorConfig[id].dbPassword && connectorConfig[id].dbTableColumns && connectorConfig[id].dbTableColumns.characters && connectorConfig[id].dbTableColumns.items)) {
-
-                console.log(dateTime() + " | Server `" + id + "` improper configuration");
-                process.exit();
-            }
-
-            await validateServer(id);
-        }
-
-        console.log(dateTime() + " |");
-        console.log(dateTime() + " | Connecting to fiskpay service...");
-
-        socketConnector.connect();
+        await validateServer(id);
     }
-    catch (error) {
 
-        console.log(dateTime() + " | ------------------------------------ ERROR START -----------------------------------")
+    console.log(dateTime() + " |");
+    console.log(dateTime() + " | Connecting to fiskpay service...");
 
-        // if (error.sqlMessage)
-        //     console.log(dateTime() + " | " + error.sqlMessage);
-        // else if (error.message)
-        //    console.log(dateTime() + " | " + error.message);
-        // else
-        console.log(dateTime() + " | " + error);
-
-        console.log(dateTime() + " | ------------------------------------- ERROR END ------------------------------------")
-    }
+    socketConnector.connect();
 })();

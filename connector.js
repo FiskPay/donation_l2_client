@@ -265,7 +265,7 @@ class Connector extends EventEmitter {
                         checks++
                 });
 
-                if (checks === 3) {
+                if (checks == 3) {
 
                     //await connection.query("SET autocommit = OFF;");
                     //await connection.query("START TRANSACTION;");
@@ -300,7 +300,7 @@ class Connector extends EventEmitter {
                         checks++
                 });
 
-                if (checks === 7) {
+                if (checks == 7) {
 
                     this.#serverTables[id] = gsConfig;
                     this.#serverReward[id] = this.#config[id].rewardId;
@@ -312,7 +312,6 @@ class Connector extends EventEmitter {
         finally {
 
             connection.release();
-
             return result;
         }
     }
@@ -323,16 +322,16 @@ class Connector extends EventEmitter {
         const id = this.#serverTables["ls"].gameservers.gameserverId;
 
         let result = false;
+        let temporary;
 
         try {
 
-            result = (await connection.query("SELECT " + id + " FROM gameservers"))[0];
-            result = result.map(key => key[id])
+            temporary = (await connection.query("SELECT " + id + " FROM gameservers"))[0];
+            result = temporary.map(key => key[id])
         }
         finally {
 
             connection.release();
-
             return result;
         }
     }
@@ -340,19 +339,19 @@ class Connector extends EventEmitter {
     GET_ACCOUNTS = async (ethAddress) => {
 
         const connection = await this.#serverConnections["ls"].getConnection();
-        const usr = this.#serverTables["ls"].accounts.accountUsername;
+        const accnm = this.#serverTables["ls"].accounts.accountUsername;
 
         let result = false;
+        let temporary;
 
         try {
 
-            result = (await connection.query("SELECT " + usr + " FROM accounts WHERE ethAddress = ?", [ethAddress]))[0];
-            result = result.map(key => key[usr])
+            temporary = (await connection.query("SELECT " + accnm + " FROM accounts WHERE wallet_address = ?", [ethAddress]))[0];
+            result = temporary.map(key => key[accnm]);
         }
         finally {
 
             connection.release();
-
             return result;
         }
     }
@@ -360,30 +359,24 @@ class Connector extends EventEmitter {
     ADD_ACCOUNT = async (username, password, ethAddress) => {
 
         const connection = await this.#serverConnections["ls"].getConnection();
-        const usr = this.#serverTables["ls"].accounts.accountUsername;
+        const accnm = this.#serverTables["ls"].accounts.accountUsername;
         const psw = this.#serverTables["ls"].accounts.accountPassword;
 
         let result = false;
+        let temporary;
 
         try {
 
-            await connection.query("SET autocommit = 0;");
-            await connection.query("START TRANSACTION;");
+            temporary = (await connection.query("SELECT " + psw + " FROM accounts WHERE " + accnm + " = ?", [username]))[0];
 
-            result = (await connection.query("SELECT " + psw + " FROM accounts WHERE " + usr + " = ?", [username]))[0];
+            if (validatePassword(password, temporary[psw])) {
 
-            if (!validatePassword(password, result[psw])) {
+                await connection.query("SET autocommit = 0;");
+                await connection.query("START TRANSACTION;");
 
-                result = false;
-                await connection.query("ROLLBACK;");
-            }
+                temporary = (await connection.query("UPDATE accounts SET wallet_address = ? WHERE " + accnm + " = ? AND wallet_address = 'not linked' AND " + psw + " = ?", [ethAddress, username, temporary[psw]]))[0];
 
-            else {
-
-                result = (await connection.query("UPDATE accounts SET ethAddress = ? WHERE " + usr + " = ? AND ethAddress = 'not linked' AND " + psw + " = ?", [ethAddress, username, result[psw]]))[0];
-                result = (result.changedRows == 1);
-
-                if (result)
+                if (result = (temporary.changedRows == 1))
                     await connection.query("COMMIT;");
                 else
                     await connection.query("ROLLBACK;");
@@ -392,7 +385,6 @@ class Connector extends EventEmitter {
         finally {
 
             connection.release();
-
             return result;
         }
     }
@@ -400,30 +392,24 @@ class Connector extends EventEmitter {
     REMOVE_ACCOUNT = async (username, password, ethAddress) => {
 
         const connection = await this.#serverConnections["ls"].getConnection();
-        const usr = this.#serverTables["ls"].accounts.accountUsername;
+        const accnm = this.#serverTables["ls"].accounts.accountUsername;
         const psw = this.#serverTables["ls"].accounts.accountPassword;
 
         let result = false;
+        let temporary;
 
         try {
 
-            await connection.query("SET autocommit = 0;");
-            await connection.query("START TRANSACTION;");
+            temporary = (await connection.query("SELECT " + psw + " FROM accounts WHERE " + accnm + " = ?", [username]))[0];
 
-            result = (await connection.query("SELECT " + psw + " FROM accounts WHERE " + usr + " = ?", [username]))[0];
+            if (validatePassword(password, temporary[psw])) {
 
-            if (!validatePassword(password, result[psw])) {
+                await connection.query("SET autocommit = 0;");
+                await connection.query("START TRANSACTION;");
 
-                result = false;
-                await connection.query("ROLLBACK;");
-            }
+                temporary = (await connection.query("UPDATE accounts SET wallet_address = 'not linked' WHERE " + accnm + " = ? AND wallet_address = ? AND " + psw + " = ?", [username, ethAddress, temporary[psw]]))[0];
 
-            else {
-
-                result = (await connection.query("UPDATE accounts SET ethAddress = 'not linked' WHERE " + usr + " = ? AND ethAddress = ? AND " + psw + " = ?", [username, ethAddress, result[psw]]))[0];
-                result = (result.changedRows == 1);
-
-                if (result)
+                if (result = (temporary.changedRows == 1))
                     await connection.query("COMMIT;");
                 else
                     await connection.query("ROLLBACK;");
@@ -432,7 +418,6 @@ class Connector extends EventEmitter {
         finally {
 
             connection.release();
-
             return result;
         }
     }
@@ -440,15 +425,39 @@ class Connector extends EventEmitter {
     GET_CHARACTERS = async (id, username) => {
 
         const connection = await this.#serverConnections[id].getConnection();
-        const acc = this.#serverTables[id].characters.accountUsername;
-        const nm = this.#serverTables[id].characters.characterName;
+        const accnm = this.#serverTables[id].characters.accountUsername;
+        const chnm = this.#serverTables[id].characters.characterName;
+
+        let result = false;
+        let temporary;
+
+        try {
+
+            temporary = (await connection.query("SELECT " + chnm + " FROM characters WHERE " + accnm + " = ?", [username]))[0];
+            result = temporary.map(key => key[chnm]);
+        }
+        finally {
+
+            connection.release();
+            return result;
+        }
+    }
+
+    GET_CHARACTER_BALANCE = async (id, charname) => {
+
+        const connection = await this.#serverConnections[id].getConnection();
+        const cchnm = this.#serverTables[id].characters.characterName;
+        const cchid = this.#serverTables[id].characters.characterId;
+        const ichid = this.#serverTables[id].items.characterId;
+        const iitmtyid = this.#serverTables[id].items.itemTypeId;
+        const iitam = this.#serverTables[id].items.itemAmount;
 
         let result = false;
 
         try {
 
-            result = (await connection.query("SELECT " + nm + " FROM characters WHERE " + acc + " = ?", [username]))[0];
-            result = result.map(key => key[nm])
+            result = (await connection.query("SELECT SUM(i." + iitam + ") AS balance FROM items AS i, characters AS c WHERE c." + cchid + " = i." + ichid + " AND c." + cchnm + " = ? AND i." + iitmtyid + " = ? AND i.loc = 'inventory'", [charname, this.#serverReward[id]]))[0];
+            result = (result.balance != null) ? (result.balance) : (0);
         }
         finally {
 
@@ -460,25 +469,7 @@ class Connector extends EventEmitter {
 
     /*
     
-GET_CHARACTER_BALANCE = async (character) => {
- 
-    return await new Promise((resolve, reject) => {
- 
-        this.#gameServer.query("SELECT i.count FROM items AS i, characters AS c WHERE c.obj_Id = i.owner_id AND c.char_name = ? AND i.item_id = ? AND i.loc = 'inventory'", [character, this.#reward], async (error, result) => {
- 
-            if (error)
-                return reject(error);
- 
-            if (result && result.length == 1)
-                return resolve(result[0].count);
- 
-            if (result && result.length == 0)
-                return resolve(0);
- 
-            return reject(result);
-        });
-    });
-}
+
  
 ADD_REFUND_AND_DECREASE_BALANCE = async (serverid, character, amount, address, refund) => {
  
