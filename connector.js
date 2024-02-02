@@ -309,6 +309,11 @@ class Connector extends EventEmitter {
                 }
             }
         }
+        catch (error) {
+
+            result = false;
+            this.emit("error", error);
+        }
         finally {
 
             connection.release();
@@ -329,6 +334,11 @@ class Connector extends EventEmitter {
             temporary = (await connection.query("SELECT " + id + " FROM gameservers"))[0];
             result = temporary.map(key => key[id])
         }
+        catch (error) {
+
+            result = false;
+            this.emit("error", error);
+        }
         finally {
 
             connection.release();
@@ -348,6 +358,11 @@ class Connector extends EventEmitter {
 
             temporary = (await connection.query("SELECT " + accnm + " FROM accounts WHERE wallet_address = ?", [ethAddress]))[0];
             result = temporary.map(key => key[accnm]);
+        }
+        catch (error) {
+
+            result = false;
+            this.emit("error", error);
         }
         finally {
 
@@ -382,6 +397,11 @@ class Connector extends EventEmitter {
                     await connection.query("ROLLBACK;");
             }
         }
+        catch (error) {
+
+            result = false;
+            this.emit("error", error);
+        }
         finally {
 
             connection.release();
@@ -415,6 +435,11 @@ class Connector extends EventEmitter {
                     await connection.query("ROLLBACK;");
             }
         }
+        catch (error) {
+
+            result = false;
+            this.emit("error", error);
+        }
         finally {
 
             connection.release();
@@ -436,6 +461,11 @@ class Connector extends EventEmitter {
             temporary = (await connection.query("SELECT " + chnm + " FROM characters WHERE " + accnm + " = ?", [username]))[0];
             result = temporary.map(key => key[chnm]);
         }
+        catch (error) {
+
+            result = false;
+            this.emit("error", error);
+        }
         finally {
 
             connection.release();
@@ -453,16 +483,21 @@ class Connector extends EventEmitter {
         const iitam = this.#serverTables[id].items.itemAmount;
 
         let result = false;
+        let temporary;
 
         try {
 
-            result = (await connection.query("SELECT SUM(i." + iitam + ") AS balance FROM items AS i, characters AS c WHERE c." + cchid + " = i." + ichid + " AND c." + cchnm + " = ? AND i." + iitmtyid + " = ? AND i.loc = 'inventory'", [charname, this.#serverReward[id]]))[0];
-            result = (result.balance != null) ? (result.balance) : (0);
+            temporary = (await connection.query("SELECT SUM(i." + iitam + ") AS balance FROM items AS i, characters AS c WHERE c." + cchid + " = i." + ichid + " AND c." + cchnm + " = ? AND i." + iitmtyid + " = ? AND i.loc = 'inventory'", [charname, this.#serverReward[id]]))[0];
+            result = (temporary.balance != null) ? (temporary.balance) : (0);
+        }
+        catch (error) {
+
+            result = false;
+            this.emit("error", error);
         }
         finally {
 
             connection.release();
-
             return result;
         }
     }

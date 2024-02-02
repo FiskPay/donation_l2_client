@@ -216,7 +216,7 @@ wsClient.on("connect", () => {
     }
 
     console.log(dateTime() + " | ------------------------------------------------------------------------------------");
-    console.log(dateTime() + " |                   Fiskpay blockchain support for Lineage2 servers                   ");
+    console.log(dateTime() + " |                   FiskPay blockchain support for Lineage2 servers                   ");
     console.log(dateTime() + " | ------------------------------------------------------------------------------------");
 
     const tokenSymbol = "LINK";
@@ -309,6 +309,21 @@ wsClient.on("connect", () => {
                 socketConnector.volatile.emit("onlineServers", onlineServers);
             }, 50)
         }
+    }).on("error", (error) => {
+
+        console.log(dateTime() + " | ------------------------------------ ERROR START -----------------------------------")
+
+        if (error.sql && error.code && error.errno && error.sqlState) {
+
+            console.log(dateTime() + " | Query: " + error.sql);
+            console.log(dateTime() + " | Code: " + error.code);
+            console.log(dateTime() + " | Number: " + error.errno);
+            console.log(dateTime() + " | State: " + error.sqlState);
+        }
+        else
+            console.log(dateTime() + " |" + error);
+
+        console.log(dateTime() + " | ------------------------------------- ERROR END ------------------------------------")
     });
 
     socketConnector.on("connect", () => {
@@ -327,7 +342,7 @@ wsClient.on("connect", () => {
     }).on("disconnect", () => {
 
         console.log(dateTime() + " |");
-        console.log(dateTime() + " | Connection to service lost");
+        console.log(dateTime() + " | Service temporary unavailable");
     }).on("logDeposit", async (obj) => {
 
 
@@ -431,7 +446,7 @@ wsClient.on("connect", () => {
     }
 
     console.log(dateTime() + " |");
-    console.log(dateTime() + " | Connecting to fiskpay service...");
+    console.log(dateTime() + " | Connecting to service...");
 
     socketConnector.connect();
 })();
