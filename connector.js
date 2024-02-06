@@ -158,7 +158,7 @@ const validatePassword = (test, target) => {
     }
     else {
 
-        return (algo[encAlgo] == target)
+        return (algo[encAlgo](test) == target)
     }
 }
 
@@ -382,7 +382,7 @@ class Connector extends EventEmitter {
 
         try {
 
-            temporary = (await connection.query("SELECT " + psw + " FROM accounts WHERE " + accnm + " = ?", [username]))[0];
+            temporary = (await connection.query("SELECT " + psw + " FROM accounts WHERE " + accnm + " = ?", [username]))[0][0];
 
             if (validatePassword(password, temporary[psw])) {
 
@@ -420,7 +420,7 @@ class Connector extends EventEmitter {
 
         try {
 
-            temporary = (await connection.query("SELECT " + psw + " FROM accounts WHERE " + accnm + " = ?", [username]))[0];
+            temporary = (await connection.query("SELECT " + psw + " FROM accounts WHERE " + accnm + " = ?", [username]))[0][0];
 
             if (validatePassword(password, temporary[psw])) {
 

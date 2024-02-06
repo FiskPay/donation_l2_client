@@ -414,7 +414,9 @@ wsClient.on("connect", () => {
                 }
                 default: {
 
+                    requestCB({ "fail": "Subject unknown" });
 
+                    break;
                 }
             }
         }
