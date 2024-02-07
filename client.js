@@ -407,10 +407,13 @@ wsClient.on("connect", () => {
 
                     break;
                 }
-                case "asd": {
+                case "getCharBal": {
 
-                    console.log('Oranges are $0.59 a pound.');
-                    break;
+                    if (data.character == undefined)
+                        requestCB({ "fail": "character undefined" });
+                    else
+                        requestCB({ "data": await serverConnector.GET_CHARACTER_BALANCE(requestObject.id, data.character) });
+
                 }
                 default: {
 

@@ -487,8 +487,8 @@ class Connector extends EventEmitter {
 
         try {
 
-            temporary = (await connection.query("SELECT SUM(i." + iitam + ") AS balance FROM items AS i, characters AS c WHERE c." + cchid + " = i." + ichid + " AND c." + cchnm + " = ? AND i." + iitmtyid + " = ? AND i.loc = 'inventory'", [charname, this.#serverReward[id]]))[0];
-            result = (temporary.balance != null) ? (temporary.balance) : (0);
+            temporary = (await connection.query("SELECT SUM(i." + iitam + ") AS balance FROM items AS i, characters AS c WHERE c." + cchid + " = i." + ichid + " AND c." + cchnm + " = ? AND i." + iitmtyid + " = ? AND i.loc = 'inventory'", [charname, this.#serverReward[id]]))[0][0];
+            result = (temporary.balance != null) ? (temporary.balance) : ("0");
         }
         catch (error) {
 
