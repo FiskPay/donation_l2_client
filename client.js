@@ -241,7 +241,7 @@ wsClient.on("connect", () => {
 
     let updateServerTimeout;
 
-    const validateServer = async (id) => {
+    const connectToServer = async (id) => {
 
         return await new Promise(async (resolve) => {
 
@@ -273,18 +273,35 @@ wsClient.on("connect", () => {
             if (serversStatus[id].v === undefined)
                 serversStatus[id].v = await serverConnector.VALIDATE_SERVER(id);
 
-            if (serversStatus[id].v === true)
+            if (serversStatus[id].v === true) {
+
+                if (id != "ls") {
+
+                    serversStatus[id].i = setInterval(() => { serverConnector.UPDATE_GAMESERVER_BALANCE(id) }, 5000);
+                }
+
                 console.log(dateTime() + " | Server `" + id + "` database connection established");
-            else if (await serverConnector.DISCONNECT_SERVER(id))
+            }
+            else if (await serverConnector.DISCONNECT_SERVER(id)) {
+
                 console.log(dateTime() + " | Server `" + id + "` database validation failed");
+            }
         }
         else {
 
             if (serversStatus[id].v !== false)
                 setTimeout(async () => { await serverConnector.CONNECT_SERVER(id); }, 10000);
 
-            if (serversStatus[id].c !== false)
+            if (serversStatus[id].c !== false) {
+
+                if (serversStatus[id].i !== undefined) {
+
+                    clearInterval(serversStatus[id].i)
+                    delete serversStatus[id].i;
+                }
+
                 console.log(dateTime() + " | Server `" + id + "` database connection failed");
+            }
         }
 
         if (serversStatus[id].c !== (serversStatus[id].c = connected)) {
@@ -434,7 +451,7 @@ wsClient.on("connect", () => {
         process.exit();
     }
 
-    await validateServer("ls");
+    await connectToServer("ls");
 
     console.log(dateTime() + " |");
     console.log(dateTime() + " | Connecting to gameserver(s) database...");
@@ -447,7 +464,7 @@ wsClient.on("connect", () => {
             process.exit();
         }
 
-        await validateServer(id);
+        await connectToServer(id);
     }
 
     console.log(dateTime() + " |");

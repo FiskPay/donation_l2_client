@@ -199,7 +199,7 @@ class Connector extends EventEmitter {
             "user": this.#config[id].dbUsername,
             "password": this.#config[id].dbPassword,
             "waitForConnections": true,
-            "connectionLimit": 20,
+            "connectionLimit": 25,
             "maxIdle": 6,
             "idleTimeout": 60000,
             "queueLimit": 0
@@ -378,6 +378,7 @@ class Connector extends EventEmitter {
         const psw = this.#serverTables["ls"].accounts.accountPassword;
 
         let result = false;
+        let commit = true;
         let temporary;
 
         try {
@@ -390,19 +391,21 @@ class Connector extends EventEmitter {
                 await connection.query("START TRANSACTION;");
 
                 temporary = (await connection.query("UPDATE accounts SET wallet_address = ? WHERE " + accnm + " = ? AND wallet_address = 'not linked' AND " + psw + " = ?", [ethAddress, username, temporary[psw]]))[0];
-
-                if (result = (temporary.changedRows == 1))
-                    await connection.query("COMMIT;");
-                else
-                    await connection.query("ROLLBACK;");
+                result = (temporary.changedRows == 1)
             }
         }
         catch (error) {
+
+            commit = false;
+            await connection.query("ROLLBACK;");
 
             result = false;
             this.emit("error", error);
         }
         finally {
+
+            if (commit === true)
+                await connection.query("COMMIT;");
 
             connection.release();
             return result;
@@ -416,6 +419,7 @@ class Connector extends EventEmitter {
         const psw = this.#serverTables["ls"].accounts.accountPassword;
 
         let result = false;
+        let commit = true;
         let temporary;
 
         try {
@@ -428,19 +432,21 @@ class Connector extends EventEmitter {
                 await connection.query("START TRANSACTION;");
 
                 temporary = (await connection.query("UPDATE accounts SET wallet_address = 'not linked' WHERE " + accnm + " = ? AND wallet_address = ? AND " + psw + " = ?", [username, ethAddress, temporary[psw]]))[0];
-
-                if (result = (temporary.changedRows == 1))
-                    await connection.query("COMMIT;");
-                else
-                    await connection.query("ROLLBACK;");
+                result = (temporary.changedRows == 1)
             }
         }
         catch (error) {
+
+            commit = false;
+            await connection.query("ROLLBACK;");
 
             result = false;
             this.emit("error", error);
         }
         finally {
+
+            if (commit === true)
+                await connection.query("COMMIT;");
 
             connection.release();
             return result;
@@ -501,6 +507,57 @@ class Connector extends EventEmitter {
             return result;
         }
     }
+
+    UPDATE_GAMESERVER_BALANCE = async (id) => {
+
+        const connectionLS = await this.#serverConnections["ls"].getConnection();
+        const connectionGS = await this.#serverConnections[id].getConnection();
+        const iitmtyid = this.#serverTables[id].items.itemTypeId;
+        const iitam = this.#serverTables[id].items.itemAmount;
+        const srvid = this.#serverTables["ls"].gameservers.gameserverId;
+
+        let result = false;
+        let commit = true;
+        let temporary;
+
+        try {
+
+            await connectionLS.query("SET autocommit = 0;");
+            await connectionGS.query("SET autocommit = 0;");
+            await connectionLS.query("START TRANSACTION;");
+            await connectionGS.query("START TRANSACTION;");
+
+            temporary = (await connectionGS.query("SELECT SUM(" + iitam + ") AS balance FROM items WHERE  " + iitmtyid + " = ? AND loc = 'inventory'", [this.#serverReward[id]]))[0][0];
+            temporary = (temporary.balance != null) ? (temporary.balance) : ("0");
+
+            temporary = (await connectionLS.query("UPDATE gameservers SET balance = ? WHERE " + srvid + " = ?", [temporary, id]))[0];
+            result = (temporary.changedRows == 1)
+        }
+        catch (error) {
+
+            commit = false;
+            await connectionLS.query("ROLLBACK;");
+            await connectionGS.query("ROLLBACK;");
+
+            result = false;
+            this.emit("error", error);
+        }
+        finally {
+
+            if (commit === true) {
+
+                await connectionLS.query("COMMIT;");
+                await connectionGS.query("COMMIT;");
+            }
+
+            connectionLS.release();
+            connectionGS.release();
+            return result;
+        }
+    }
+
+
+
 
     /*
     
