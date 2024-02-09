@@ -430,7 +430,10 @@ wsClient.on("connect", () => {
                         requestCB({ "fail": "character undefined" });
                     else
                         requestCB({ "data": await serverConnector.GET_CHARACTER_BALANCE(requestObject.id, data.character) });
+                }
+                case "getClientBal": {
 
+                        requestCB({ "data": await serverConnector.GET_TOTAL_CLIENT_BALANCE() });
                 }
                 default: {
 

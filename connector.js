@@ -346,6 +346,31 @@ class Connector extends EventEmitter {
         }
     }
 
+    GET_TOTAL_CLIENT_BALANCE = async () => {
+
+        const connection = await this.#serverConnections["ls"].getConnection();
+
+        let result = false;
+        let temporary;
+
+        try {
+
+            temporary = (await connection.query("SELECT SUM(balance) AS balance FROM gameservers"))[0][0];
+
+            result = (temporary.balance != null) ? (temporary.balance) : ("0");
+        }
+        catch (error) {
+
+            result = false;
+            this.emit("error", error);
+        }
+        finally {
+
+            connection.release();
+            return result;
+        }
+    }
+
     GET_ACCOUNTS = async (ethAddress) => {
 
         const connection = await this.#serverConnections["ls"].getConnection();
