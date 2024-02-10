@@ -300,10 +300,10 @@ wsClient.on("connect", () => {
         console.log(dateTime() + " | Service temporary unavailable");
     }).on("logDeposit", async (txHash, from, symbol, amount, server, character) => {
 
-        if (serversStatus[server] === undefined || serversStatus[server].c !== true || await serverConnector.LOG_DEPOSIT(txHash, from, symbol, amount, server, character) !== true)
+        if (serversStatus[server] === undefined || serversStatus[server].c !== true || await serverConnector.LOG_DEPOSIT(txHash, from, amount, server, character) !== true)
             console.log(dateTime() + " | You must manually reward character " + character + " with " + amount + " tokens. Server `" + server + "` database currently unavailable");
         else
-            console.log(dateTime() + " | Deposit from address " + from + " to character " + character + " (" + amount + " " + symbol + ")");
+            console.log(dateTime() + " | Deposit " + amount + " " + symbol + ", from " + from + ", to " + character + ", server `" + server + "`");
 
     }).on("logWithdrawal", async (txHash, to, symbol, amount, server, character, refund) => {
 

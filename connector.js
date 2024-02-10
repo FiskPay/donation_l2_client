@@ -584,7 +584,7 @@ class Connector extends EventEmitter {
         }
     }
 
-    LOG_DEPOSIT = async (txHash, from, symbol, amount, id, character) => {
+    LOG_DEPOSIT = async (txHash, from, amount, id, character) => {
 
         const connectionLS = await this.#serverConnections["ls"].getConnection();
         const connectionGS = await this.#serverConnections[id].getConnection();
