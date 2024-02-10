@@ -80,39 +80,6 @@ wsClient.on("connect", () => {
             res.type = "res";
             res.data = {};
 
-            if (obj.subject == "getAccs" && obj.step == 1) {
-
-                emit = true;
-                res.data.accounts = await connector.GET_ACCOUNTS(obj.data.ethAddress);
-            }
-            else if (obj.subject == "addAcc" && obj.step == 1) {
-
-                emit = true;
-
-                if (await connector.VERIFY_PASSWORD(obj.data.username, obj.data.password))
-                    res.data.added = await connector.ADD_ADDRESS(obj.data.username, obj.data.ethAddress);
-                else
-                    res.data.added = false;
-            }
-            else if (obj.subject == "removeAcc" && obj.step == 1) {
-
-                emit = true;
-
-                if (await connector.VERIFY_PASSWORD(obj.data.username, obj.data.password))
-                    res.data.removed = await connector.REMOVE_ADDRESS(obj.data.username, obj.data.ethAddress);
-                else
-                    res.data.removed = false;
-            }
-            else if (obj.subject == "getChars" && obj.step == 1) {
-
-                emit = true;
-                res.data.characters = await connector.GET_CHARACTERS(obj.data.username);
-            }
-            else if (obj.subject == "getCharBalance" && obj.step == 1) {
-
-                emit = true;
-                res.data.balance = await connector.GET_CHARACTER_BALANCE(obj.data.character);
-            }
             else if (obj.subject == "newWithdraw" && obj.step == 1) {
 
                 const trueAmount = await connector.GET_CHARACTER_BALANCE(obj.data.character);
@@ -241,28 +208,6 @@ wsClient.on("connect", () => {
 
     let updateServerTimeout;
 
-    const connectToServer = async (id) => {
-
-        return await new Promise(async (resolve) => {
-
-            serversStatus[id] = {};
-            await serverConnector.CONNECT_SERVER(id);
-
-            const interval = setInterval(() => {
-
-                if (serversStatus[id].v !== undefined) {
-
-                    clearInterval(interval);
-
-                    if (serversStatus[id].v !== true)
-                        process.exit();
-
-                    resolve(true);
-                }
-            }, 250);
-        });
-    }
-
     const serverConnector = new Connector(connectorConfig, remoteIPAddress);
     const socketConnector = io("ws://127.0.0.1:42099", { "autoConnect": false, "reconnection": true, "reconnectionDelay": 5000, "reconnectionAttempts": Infinity }); // "wss://ds.fiskpay.com:42099" "ws://127.0.0.1:42099"
 
@@ -275,17 +220,13 @@ wsClient.on("connect", () => {
 
             if (serversStatus[id].v === true) {
 
-                if (id != "ls") {
-
+                if (id != "ls")
                     serversStatus[id].i = setInterval(() => { serverConnector.UPDATE_GAMESERVER_BALANCE(id) }, 5000);
-                }
 
                 console.log(dateTime() + " | Server `" + id + "` database connection established");
             }
-            else if (await serverConnector.DISCONNECT_SERVER(id)) {
-
+            else if (await serverConnector.DISCONNECT_SERVER(id))
                 console.log(dateTime() + " | Server `" + id + "` database validation failed");
-            }
         }
         else {
 
@@ -294,11 +235,8 @@ wsClient.on("connect", () => {
 
             if (serversStatus[id].c !== false) {
 
-                if (serversStatus[id].i !== undefined) {
-
+                if (serversStatus[id].i !== undefined)
                     clearInterval(serversStatus[id].i)
-                    delete serversStatus[id].i;
-                }
 
                 console.log(dateTime() + " | Server `" + id + "` database connection failed");
             }
@@ -338,7 +276,7 @@ wsClient.on("connect", () => {
             console.log(dateTime() + " | State: " + error.sqlState);
         }
         else
-            console.log(dateTime() + " |" + error);
+            console.log(dateTime() + " | " + error);
 
         console.log(dateTime() + " | ------------------------------------- ERROR END ------------------------------------")
     });
@@ -360,14 +298,26 @@ wsClient.on("connect", () => {
 
         console.log(dateTime() + " |");
         console.log(dateTime() + " | Service temporary unavailable");
-    }).on("logDeposit", async (obj) => {
+    }).on("logDeposit", async (txHash, from, symbol, amount, server, character) => {
 
+        if (serversStatus[server] === undefined || serversStatus[server].c !== true || await serverConnector.LOG_DEPOSIT(txHash, from, symbol, amount, server, character) !== true)
+            console.log(dateTime() + " | You must manually reward character " + character + " with " + amount + " tokens. Server `" + server + "` database currently unavailable");
+        else
+            console.log(dateTime() + " | Deposit from address " + from + " to character " + character + " (" + amount + " " + symbol + ")");
 
-    }).on("logWithdrawal", async (obj) => {
+    }).on("logWithdrawal", async (txHash, to, symbol, amount, server, character, refund) => {
 
+        if (serversStatus[server] === undefined || serversStatus[server].c !== true)
+            console.log(dateTime() + " | You must manually remove " + amount + " tokens from character " + character + ". Server `" + server + "` database currently unavailable");
+        else {
 
+            console.log(txHash + " " + to + " " + symbol + " " + amount + " " + server + " " + character + " " + refund)
 
-
+            //if (await connector.REMOVE_REFUND(server, character, amount, refund) === false)
+            //    console.log(dateTime() + " | You must remove " + amount + " tokens from character " + character + " ingame. Automatic token decrease failed");
+            //else if (await connector.LOG_WITHDRAWAL(txHash, server, character, to, symbol, amount) !== false)
+            //    console.log(dateTime() + " | Withdrawal from character " + character + " to address " + to + " (" + amount + " " + symbol + ")");
+        }
     }).on("request", async (requestObject, requestCB) => {
 
         if (serversStatus["ls"].c !== true)
@@ -433,7 +383,7 @@ wsClient.on("connect", () => {
                 }
                 case "getClientBal": {
 
-                        requestCB({ "data": await serverConnector.GET_TOTAL_CLIENT_BALANCE() });
+                    requestCB({ "data": await serverConnector.GET_TOTAL_CLIENT_BALANCE() });
                 }
                 default: {
 
@@ -444,6 +394,28 @@ wsClient.on("connect", () => {
             }
         }
     });
+
+    const connectToServer = async (id) => {
+
+        return await new Promise(async (resolve) => {
+
+            serversStatus[id] = {};
+            await serverConnector.CONNECT_SERVER(id);
+
+            const interval = setInterval(() => {
+
+                if (serversStatus[id].v !== undefined) {
+
+                    clearInterval(interval);
+
+                    if (serversStatus[id].v !== true)
+                        process.exit();
+
+                    resolve(true);
+                }
+            }, 250);
+        });
+    }
 
     console.log(dateTime() + " |");
     console.log(dateTime() + " | Connecting to loginserver database...");

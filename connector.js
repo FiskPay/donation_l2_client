@@ -331,7 +331,7 @@ class Connector extends EventEmitter {
 
         try {
 
-            temporary = (await connection.query("SELECT " + id + " FROM gameservers"))[0];
+            temporary = (await connection.query("SELECT " + id + " FROM gameservers;"))[0];
             result = temporary.map(key => key[id])
         }
         catch (error) {
@@ -355,7 +355,7 @@ class Connector extends EventEmitter {
 
         try {
 
-            temporary = (await connection.query("SELECT SUM(balance) AS balance FROM gameservers"))[0][0];
+            temporary = (await connection.query("SELECT SUM(balance) AS balance FROM gameservers;"))[0][0];
 
             result = (temporary.balance != null) ? (temporary.balance) : ("0");
         }
@@ -381,7 +381,7 @@ class Connector extends EventEmitter {
 
         try {
 
-            temporary = (await connection.query("SELECT " + accnm + " FROM accounts WHERE wallet_address = ?", [ethAddress]))[0];
+            temporary = (await connection.query("SELECT " + accnm + " FROM accounts WHERE wallet_address = ?;", [ethAddress]))[0];
             result = temporary.map(key => key[accnm]);
         }
         catch (error) {
@@ -415,16 +415,17 @@ class Connector extends EventEmitter {
                 await connection.query("SET autocommit = 0;");
                 await connection.query("START TRANSACTION;");
 
-                temporary = (await connection.query("UPDATE accounts SET wallet_address = ? WHERE " + accnm + " = ? AND wallet_address = 'not linked' AND " + psw + " = ?", [ethAddress, username, temporary[psw]]))[0];
+                temporary = (await connection.query("UPDATE accounts SET wallet_address = ? WHERE " + accnm + " = ? AND wallet_address = 'not linked' AND " + psw + " = ?;", [ethAddress, username, temporary[psw]]))[0];
                 result = (temporary.changedRows == 1)
             }
         }
         catch (error) {
 
             commit = false;
+            result = false;
+
             await connection.query("ROLLBACK;");
 
-            result = false;
             this.emit("error", error);
         }
         finally {
@@ -456,16 +457,17 @@ class Connector extends EventEmitter {
                 await connection.query("SET autocommit = 0;");
                 await connection.query("START TRANSACTION;");
 
-                temporary = (await connection.query("UPDATE accounts SET wallet_address = 'not linked' WHERE " + accnm + " = ? AND wallet_address = ? AND " + psw + " = ?", [username, ethAddress, temporary[psw]]))[0];
+                temporary = (await connection.query("UPDATE accounts SET wallet_address = 'not linked' WHERE " + accnm + " = ? AND wallet_address = ? AND " + psw + " = ?;", [username, ethAddress, temporary[psw]]))[0];
                 result = (temporary.changedRows == 1)
             }
         }
         catch (error) {
 
             commit = false;
+            result = false;
+
             await connection.query("ROLLBACK;");
 
-            result = false;
             this.emit("error", error);
         }
         finally {
@@ -489,7 +491,7 @@ class Connector extends EventEmitter {
 
         try {
 
-            temporary = (await connection.query("SELECT " + chnm + " FROM characters WHERE " + accnm + " = ?", [username]))[0];
+            temporary = (await connection.query("SELECT " + chnm + " FROM characters WHERE " + accnm + " = ?;", [username]))[0];
             result = temporary.map(key => key[chnm]);
         }
         catch (error) {
@@ -518,7 +520,7 @@ class Connector extends EventEmitter {
 
         try {
 
-            temporary = (await connection.query("SELECT SUM(i." + iitam + ") AS balance FROM items AS i, characters AS c WHERE c." + cchid + " = i." + ichid + " AND c." + cchnm + " = ? AND i." + iitmtyid + " = ? AND i.loc = 'inventory'", [charname, this.#serverReward[id]]))[0][0];
+            temporary = (await connection.query("SELECT SUM(i." + iitam + ") AS balance FROM items AS i, characters AS c WHERE c." + cchid + " = i." + ichid + " AND c." + cchnm + " = ? AND i." + iitmtyid + " = ? AND i.loc = 'inventory';", [charname, this.#serverReward[id]]))[0][0];
             result = (temporary.balance != null) ? (temporary.balance) : ("0");
         }
         catch (error) {
@@ -552,19 +554,20 @@ class Connector extends EventEmitter {
             await connectionLS.query("START TRANSACTION;");
             await connectionGS.query("START TRANSACTION;");
 
-            temporary = (await connectionGS.query("SELECT SUM(" + iitam + ") AS balance FROM items WHERE  " + iitmtyid + " = ? AND loc = 'inventory'", [this.#serverReward[id]]))[0][0];
+            temporary = (await connectionGS.query("SELECT SUM(" + iitam + ") AS balance FROM items WHERE  " + iitmtyid + " = ? AND loc = 'inventory';", [this.#serverReward[id]]))[0][0];
             temporary = (temporary.balance != null) ? (temporary.balance) : ("0");
 
-            temporary = (await connectionLS.query("UPDATE gameservers SET balance = ? WHERE " + srvid + " = ?", [temporary, id]))[0];
+            temporary = (await connectionLS.query("UPDATE gameservers SET balance = ? WHERE " + srvid + " = ?;", [temporary, id]))[0];
             result = (temporary.changedRows == 1)
         }
         catch (error) {
 
             commit = false;
+            result = false;
+
             await connectionLS.query("ROLLBACK;");
             await connectionGS.query("ROLLBACK;");
 
-            result = false;
             this.emit("error", error);
         }
         finally {
@@ -581,8 +584,81 @@ class Connector extends EventEmitter {
         }
     }
 
+    LOG_DEPOSIT = async (txHash, from, symbol, amount, id, character) => {
 
+        const connectionLS = await this.#serverConnections["ls"].getConnection();
+        const connectionGS = await this.#serverConnections[id].getConnection();
+        const cchnm = this.#serverTables[id].characters.characterName;
+        const cchid = this.#serverTables[id].characters.characterId
+        const iid = this.#serverTables[id].items.itemId;;
+        const ichid = this.#serverTables[id].items.characterId;
+        const iitmtyid = this.#serverTables[id].items.itemTypeId;
+        const iitam = this.#serverTables[id].items.itemAmount;
 
+        let result = false;
+        let commit = true;
+        let temporary;
+
+        try {
+
+            await connectionLS.query("SET autocommit = 0;");
+            await connectionGS.query("SET autocommit = 0;");
+            await connectionLS.query("START TRANSACTION;");
+            await connectionGS.query("START TRANSACTION;");
+
+            temporary = (await connectionGS.query("SELECT " + cchid + " FROM characters WHERE  " + cchnm + " = ?;", [character]))[0][0];
+            temporary = temporary[cchid];
+
+            let charID = temporary;
+
+            temporary = (await connectionGS.query("SELECT " + iitam + " FROM items WHERE  " + iitmtyid + " = ? AND loc = 'inventory' AND " + ichid + " = ? LIMIT 1;", [this.#serverReward[id], charID]))[0];
+
+            if (temporary.length == 1) {
+
+                temporary = (await connectionGS.query("UPDATE items SET " + iitam + " = " + iitam + " + ? WHERE " + ichid + " = ? AND " + iitmtyid + " = ? AND `loc` = 'inventory' LIMIT 1;", [amount, charID, this.#serverReward[id]]))[0];
+                result = (temporary.changedRows == 1);
+            }
+            else {
+
+                let testID = Math.floor(Math.random() * 2147483646);
+
+                do {
+
+                    testID++;
+                    temporary = (await connectionGS.query("SELECT COUNT(" + iid + ") AS instances FROM items WHERE " + iid + " = ?;", [testID]))[0][0];
+
+                } while (temporary.instances > 0)
+
+                temporary = (await connectionGS.query("INSERT INTO items (" + ichid + ", " + iid + ", " + iitmtyid + ", " + iitam + ", loc) VALUES (?, ?, ?, ?, 'inventory');", [charID, testID, this.#serverReward[id], amount]))[0];
+                result = (temporary.affectedRows == 1);
+            }
+
+            if (result == true)
+                await connectionLS.query("INSERT INTO fiskpay_deposits (server_id, transaction_hash, character_name, wallet_address, amount) VALUES (?, ?, ?, ?, ?);", [id, txHash, character, from, amount]);
+        }
+        catch (error) {
+
+            commit = false;
+            result = false;
+
+            await connectionLS.query("ROLLBACK;");
+            await connectionGS.query("ROLLBACK;");
+
+            this.emit("error", error);
+        }
+        finally {
+
+            if (commit === true) {
+
+                await connectionLS.query("COMMIT;");
+                await connectionGS.query("COMMIT;");
+            }
+
+            connectionLS.release();
+            connectionGS.release();
+            return result;
+        }
+    }
 
     /*
     
