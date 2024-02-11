@@ -312,11 +312,13 @@ class Connector extends EventEmitter {
         catch (error) {
 
             result = false;
+
             this.emit("error", error);
         }
         finally {
 
             connection.release();
+
             return result;
         }
     }
@@ -337,11 +339,13 @@ class Connector extends EventEmitter {
         catch (error) {
 
             result = false;
+
             this.emit("error", error);
         }
         finally {
 
             connection.release();
+
             return result;
         }
     }
@@ -356,17 +360,18 @@ class Connector extends EventEmitter {
         try {
 
             temporary = (await connection.query("SELECT SUM(balance) AS balance FROM gameservers;"))[0][0];
-
-            result = (temporary.balance != null) ? (temporary.balance) : ("0");
+            result = temporary.balance;
         }
         catch (error) {
 
             result = false;
+
             this.emit("error", error);
         }
         finally {
 
             connection.release();
+
             return result;
         }
     }
@@ -387,11 +392,13 @@ class Connector extends EventEmitter {
         catch (error) {
 
             result = false;
+
             this.emit("error", error);
         }
         finally {
 
             connection.release();
+
             return result;
         }
     }
@@ -403,7 +410,6 @@ class Connector extends EventEmitter {
         const psw = this.#serverTables["ls"].accounts.accountPassword;
 
         let result = false;
-        let commit = true;
         let temporary;
 
         try {
@@ -421,19 +427,19 @@ class Connector extends EventEmitter {
         }
         catch (error) {
 
-            commit = false;
             result = false;
-
-            await connection.query("ROLLBACK;");
 
             this.emit("error", error);
         }
         finally {
 
-            if (commit === true)
+            if (result === true)
                 await connection.query("COMMIT;");
+            else
+                await connection.query("ROLLBACK;");
 
             connection.release();
+
             return result;
         }
     }
@@ -445,7 +451,6 @@ class Connector extends EventEmitter {
         const psw = this.#serverTables["ls"].accounts.accountPassword;
 
         let result = false;
-        let commit = true;
         let temporary;
 
         try {
@@ -463,19 +468,19 @@ class Connector extends EventEmitter {
         }
         catch (error) {
 
-            commit = false;
             result = false;
-
-            await connection.query("ROLLBACK;");
 
             this.emit("error", error);
         }
         finally {
 
-            if (commit === true)
+            if (result === true)
                 await connection.query("COMMIT;");
+            else
+                await connection.query("ROLLBACK;");
 
             connection.release();
+
             return result;
         }
     }
@@ -497,11 +502,13 @@ class Connector extends EventEmitter {
         catch (error) {
 
             result = false;
+
             this.emit("error", error);
         }
         finally {
 
             connection.release();
+
             return result;
         }
     }
@@ -521,16 +528,18 @@ class Connector extends EventEmitter {
         try {
 
             temporary = (await connection.query("SELECT SUM(i." + iitam + ") AS balance FROM items AS i, characters AS c WHERE c." + cchid + " = i." + ichid + " AND c." + cchnm + " = ? AND i." + iitmtyid + " = ? AND i.loc = 'inventory';", [charname, this.#serverReward[id]]))[0][0];
-            result = (temporary.balance != null) ? (temporary.balance) : ("0");
+            result = temporary.balance;
         }
         catch (error) {
 
             result = false;
+
             this.emit("error", error);
         }
         finally {
 
             connection.release();
+
             return result;
         }
     }
@@ -544,7 +553,6 @@ class Connector extends EventEmitter {
         const srvid = this.#serverTables["ls"].gameservers.gameserverId;
 
         let result = false;
-        let commit = true;
         let temporary;
 
         try {
@@ -554,32 +562,34 @@ class Connector extends EventEmitter {
             await connectionLS.query("START TRANSACTION;");
             await connectionGS.query("START TRANSACTION;");
 
-            temporary = (await connectionGS.query("SELECT SUM(" + iitam + ") AS balance FROM items WHERE  " + iitmtyid + " = ? AND loc = 'inventory';", [this.#serverReward[id]]))[0][0];
-            temporary = (temporary.balance != null) ? (temporary.balance) : ("0");
+            temporary = (await connectionGS.query("SELECT SUM(" + iitam + ") AS balance FROM items WHERE  " + iitmtyid + " = ?;", [this.#serverReward[id]]))[0][0];
+            temporary = temporary.balance;
 
             temporary = (await connectionLS.query("UPDATE gameservers SET balance = ? WHERE " + srvid + " = ?;", [temporary, id]))[0];
             result = (temporary.changedRows == 1)
         }
         catch (error) {
 
-            commit = false;
             result = false;
-
-            await connectionLS.query("ROLLBACK;");
-            await connectionGS.query("ROLLBACK;");
 
             this.emit("error", error);
         }
         finally {
 
-            if (commit === true) {
+            if (result === true) {
 
                 await connectionLS.query("COMMIT;");
                 await connectionGS.query("COMMIT;");
             }
+            else {
+
+                await connectionLS.query("ROLLBACK;");
+                await connectionGS.query("ROLLBACK;");
+            }
 
             connectionLS.release();
             connectionGS.release();
+
             return result;
         }
     }
@@ -596,7 +606,6 @@ class Connector extends EventEmitter {
         const iitam = this.#serverTables[id].items.itemAmount;
 
         let result = false;
-        let commit = true;
         let temporary;
 
         try {
@@ -606,21 +615,22 @@ class Connector extends EventEmitter {
             await connectionLS.query("START TRANSACTION;");
             await connectionGS.query("START TRANSACTION;");
 
-            temporary = (await connectionGS.query("SELECT " + cchid + " FROM characters WHERE  " + cchnm + " = ?;", [character]))[0][0];
-            temporary = temporary[cchid];
+            temporary = (await connectionGS.query("SELECT " + cchid + " FROM characters WHERE  " + cchnm + " = ? LIMIT 1;", [character]))[0][0];
 
-            let charID = temporary;
+            const charID = temporary[cchid];
 
-            temporary = (await connectionGS.query("SELECT " + iitam + " FROM items WHERE  " + iitmtyid + " = ? AND loc = 'inventory' AND " + ichid + " = ? LIMIT 1;", [this.#serverReward[id], charID]))[0];
+            temporary = (await connectionGS.query("SELECT " + iid + " FROM items WHERE  " + iitmtyid + " = ? AND loc = 'inventory' AND " + ichid + " = ? LIMIT 1;", [this.#serverReward[id], charID]))[0];
 
             if (temporary.length == 1) {
 
-                temporary = (await connectionGS.query("UPDATE items SET " + iitam + " = " + iitam + " + ? WHERE " + ichid + " = ? AND " + iitmtyid + " = ? AND `loc` = 'inventory' LIMIT 1;", [amount, charID, this.#serverReward[id]]))[0];
+                const itemID = temporary[0][iid];
+
+                temporary = (await connectionGS.query("UPDATE items SET " + iitam + " = " + iitam + " + ? WHERE " + iid + " = ? LIMIT 1;", [amount, itemID]))[0];
                 result = (temporary.changedRows == 1);
             }
             else {
 
-                let testID = Math.floor(Math.random() * 2147483646);
+                let testID = 2100000000 + Math.floor(Math.random() * 9999900);
 
                 do {
 
@@ -633,33 +643,177 @@ class Connector extends EventEmitter {
                 result = (temporary.affectedRows == 1);
             }
 
-            if (result == true)
-                await connectionLS.query("INSERT INTO fiskpay_deposits (server_id, transaction_hash, character_name, wallet_address, amount) VALUES (?, ?, ?, ?, ?);", [id, txHash, character, from, amount]);
+            if (result == true && (await connectionLS.query("INSERT INTO fiskpay_deposits (server_id, transaction_hash, character_name, wallet_address, amount) VALUES (?, ?, ?, ?, ?);", [id, txHash, character, from, amount]))[0].affectedRows != 1)
+                result = false;
         }
         catch (error) {
 
-            commit = false;
             result = false;
-
-            await connectionLS.query("ROLLBACK;");
-            await connectionGS.query("ROLLBACK;");
 
             this.emit("error", error);
         }
         finally {
 
-            if (commit === true) {
+            if (result === true) {
 
                 await connectionLS.query("COMMIT;");
                 await connectionGS.query("COMMIT;");
             }
+            else {
+
+                await connectionLS.query("ROLLBACK;");
+                await connectionGS.query("ROLLBACK;");
+            }
 
             connectionLS.release();
             connectionGS.release();
+
             return result;
         }
     }
 
+    CREATE_REFUND = async (address, amount, id, character, refund) => {
+
+        const connectionLS = await this.#serverConnections["ls"].getConnection();
+        const connectionGS = await this.#serverConnections[id].getConnection();
+        const ausrnm = this.#serverTables["ls"].accounts.accountUsername;
+        const cusrnm = this.#serverTables[id].characters.accountUsername;
+        const cchnm = this.#serverTables[id].characters.characterName;
+        const cchid = this.#serverTables[id].characters.characterId
+        const iid = this.#serverTables[id].items.itemId;;
+        const ichid = this.#serverTables[id].items.characterId;
+        const iitmtyid = this.#serverTables[id].items.itemTypeId;
+        const iitam = this.#serverTables[id].items.itemAmount;
+
+        let result = false;
+        let temporary;
+
+        try {
+
+            await connectionLS.query("SET autocommit = 0;");
+            await connectionGS.query("SET autocommit = 0;");
+            await connectionLS.query("START TRANSACTION;");
+            await connectionGS.query("START TRANSACTION;");
+
+            temporary = (await connectionGS.query("SELECT " + cchid + ", " + cusrnm + " FROM characters WHERE  " + cchnm + " = ? LIMIT 1;", [character]))[0][0];
+
+            const charID = temporary[cchid];
+            const charLogin = temporary[cusrnm];
+
+            temporary = (await connectionLS.query("SELECT wallet_address FROM accounts WHERE " + ausrnm + " = ? LIMIT 1;", [charLogin]))[0][0];
+
+            if (temporary.wallet_address === address) {
+
+                temporary = (await connectionGS.query("SELECT SUM(" + iitam + ") AS balance FROM items WHERE " + iitmtyid + " = ? AND " + ichid + " = ? AND loc = 'inventory';", [this.#serverReward[id], charID]))[0][0];
+
+                const charBalance = temporary.balance;
+
+                if (charBalance >= amount) {
+
+                    let remainAmount = amount;
+                    let index = 0;
+
+                    temporary = (await connectionGS.query("SELECT " + iitam + ", " + iid + " FROM items WHERE  " + iitmtyid + " = ? AND " + ichid + " = ? AND loc = 'inventory';", [this.#serverReward[id], charID]))[0];
+
+                    while (remainAmount > 0) {
+
+                        let rowItemAmount = temporary[index][iitam];
+                        let rowItemID = temporary[index][iid];
+
+                        if (rowItemAmount == remainAmount && (await connectionGS.query("DELETE FROM items WHERE " + iid + " = ? LIMIT 1;", [rowItemID]))[0].affectedRows == 1)
+                            remainAmount = 0;
+                        else if (rowItemAmount > remainAmount && (await connectionGS.query("UPDATE items SET " + iitam + " = " + iitam + " - ? WHERE " + iid + " = ? LIMIT 1;", [remainAmount, rowItemID]))[0].changedRows == 1)
+                            remainAmount = 0;
+                        else if (((await connectionGS.query("DELETE FROM items WHERE " + iid + " = ? LIMIT 1;", [rowItemID]))[0]).affectedRows == 1)
+                            remainAmount = remainAmount - rowItemAmount;
+                        else
+                            break;
+
+                        index++;
+                    }
+
+                    if (remainAmount == 0)
+                        result = true;
+                }
+                if (result == true && (await connectionLS.query("INSERT INTO fiskpay_temporary (server_id, character_id, amount, refund) VALUES (?, ?, ?, ?);", [id, character, amount, refund]))[0].affectedRows != 1)
+                    result = false;
+            }
+        }
+        catch (error) {
+
+            result = false;
+
+            this.emit("error", error);
+        }
+        finally {
+
+            if (result === true) {
+
+                await connectionLS.query("COMMIT;");
+                await connectionGS.query("COMMIT;");
+            }
+            else {
+
+                await connectionLS.query("ROLLBACK;");
+                await connectionGS.query("ROLLBACK;");
+            }
+
+            connectionLS.release();
+            connectionGS.release();
+
+            return result;
+        }
+    }
+
+    LOG_WITHDRAWAL = async (txHash, to, amount, id, character, refund) => {
+
+        const connectionLS = await this.#serverConnections["ls"].getConnection();
+        const connectionGS = await this.#serverConnections[id].getConnection();
+        const cchnm = this.#serverTables[id].characters.characterName;
+        const cchid = this.#serverTables[id].characters.characterId
+
+        let result = false;
+        let temporary;
+
+        try {
+
+            await connectionLS.query("SET autocommit = 0;");
+            await connectionGS.query("SET autocommit = 0;");
+            await connectionLS.query("START TRANSACTION;");
+            await connectionGS.query("START TRANSACTION;");
+
+            temporary = (await connectionGS.query("SELECT " + cchid + " FROM characters WHERE  " + cchnm + " = ? LIMIT 1;", [character]))[0][0];
+
+            if (((await connectionLS.query("DELETE FROM fiskpay_temporary WHERE server_id = ? AND character_id = ? AND amount = ? AND refund = ? LIMIT 1;", [id, temporary[cchid], amount, refund]))[0]).affectedRows == 1)
+                if ((await connectionLS.query("INSERT INTO fiskpay_withdrawals (server_id, transaction_hash, character_name, wallet_address, amount) VALUES (?, ?, ?, ?, ?);", [id, txHash, character, to, amount]))[0].affectedRows == 1)
+                    result = true;
+        }
+        catch (error) {
+
+            result = false;
+
+            this.emit("error", error);
+        }
+        finally {
+
+            if (result === true) {
+
+                await connectionLS.query("COMMIT;");
+                await connectionGS.query("COMMIT;");
+            }
+            else {
+
+                await connectionLS.query("ROLLBACK;");
+                await connectionGS.query("ROLLBACK;");
+            }
+
+            connectionLS.release();
+            connectionGS.release();
+
+            return result;
+        }
+
+    }
     /*
     
 
@@ -868,19 +1022,7 @@ REMOVE_REFUND = async (serverid, character, amount, refund) => {
     });
 }
  
-LOG_DEPOSIT = async (txHash, serverid, character, from, symbol, amount) => {
- 
-    return await new Promise((resolve, reject) => {
- 
-        this.#loginServer.query("INSERT INTO `fiskpay_deposits` (`txHash`, `server_id`, `character`, `from`, `symbol`, `amount`) VALUES (?, ?, ?, ?, ?, ?)", [txHash, serverid, character, from, symbol, amount], (error) => {
- 
-            if (error)
-                return reject(error);
- 
-            return resolve(true);
-        });
-    });
-}
+
  
 LOG_WITHDRAWAL = async (txHash, serverid, character, to, symbol, amount) => {
  
@@ -1012,76 +1154,7 @@ REFUND_EXPIRED = async () => {
         });
     });
 }
- 
-GET_GAMESERVER_BALANCE = async () => {
- 
-    return await new Promise((resolve, reject) => {
- 
-        this.#gameServer.query("SELECT SUM(`count`) AS balance FROM `items`", async (error, result) => {
- 
-            if (error)
-                return reject(error);
- 
-            if (result && result.length == 1)
-                return resolve((result[0].balance != null) ? (result[0].balance) : (0));
- 
-            return resolve(false);
-        });
-    });
-}
- 
-GET_LOGINSERVER_DATA = async (serverid) => {
- 
-    return await new Promise((resolve, reject) => {
- 
-        this.#loginServer.query("SELECT SUM(`balance`) AS balance, SUM(`nChars`) AS nChars FROM `fiskpay_balances`", async (error, result) => {
- 
-            if (error)
-                return reject(error);
- 
-            if (result && result.length == 1)
-                return resolve({ "balance": ((result[0].balance != null) ? (result[0].balance) : (0)), "nChars": ((result[0].nChars != null) ? (result[0].nChars) : (0)) });
- 
-            return resolve(false);
-        });
-    });
-}
- 
-UPDATE_LOGINSERVER_DATA = async (serverid) => {
- 
-    return await new Promise((resolve, reject) => {
- 
-        this.#gameServer.query("SELECT SUM(`count`) AS balance, COUNT(`count`) AS nChars  FROM `items`", async (error, result) => {
- 
-            if (error)
-                return reject(error);
- 
-            if (result && result.length == 1) {
- 
-                const balance = ((result[0].balance != null) ? (result[0].balance) : (0));
-                const nChars = ((result[0].nChars != null) ? (result[0].nChars) : (0));
- 
-                const data = await new Promise((res) => {
- 
-                    this.#loginServer.query("INSERT INTO `fiskpay_balances` (`server_id`, `balance`, `nChars`) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE `balance` = ?, `nChars` = ?", [serverid, balance, nChars, balance, nChars], (e) => {
- 
-                        if (e)
-                            return res({ "error": e });
- 
-                        return res(true);
-                    });
-                });
- 
-                if (data.error)
-                    return reject(data.error);
- 
-                return resolve(true);
-            }
- 
-            return resolve(false);
-        });
-    });
-}
+
 */
 }
 

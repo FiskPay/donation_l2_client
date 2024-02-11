@@ -220,8 +220,25 @@ wsClient.on("connect", () => {
 
             if (serversStatus[id].v === true) {
 
-                if (id != "ls")
-                    serversStatus[id].i = setInterval(() => { serverConnector.UPDATE_GAMESERVER_BALANCE(id) }, 5000);
+                if (id != "ls") {
+
+                    let refund = 0;
+
+                    serversStatus[id].i = setInterval(async () => {
+
+                        if (refund > 20) {
+
+                            //await serverConnector.REFUND_CHARACTERS(id);
+                            await serverConnector.UPDATE_GAMESERVER_BALANCE(id);
+                            refund = 0;
+                        }
+                        else {
+
+                            await serverConnector.UPDATE_GAMESERVER_BALANCE(id);
+                            refund++;
+                        }
+                    }, 5000);
+                }
 
                 console.log(dateTime() + " | Server `" + id + "` database connection established");
             }
@@ -235,8 +252,11 @@ wsClient.on("connect", () => {
 
             if (serversStatus[id].c !== false) {
 
-                if (serversStatus[id].i !== undefined)
-                    clearInterval(serversStatus[id].i)
+                if (serversStatus[id].i !== undefined) {
+
+                    clearInterval(serversStatus[id].i);
+                    delete serversStatus[id].i;
+                }
 
                 console.log(dateTime() + " | Server `" + id + "` database connection failed");
             }
@@ -303,21 +323,13 @@ wsClient.on("connect", () => {
         if (serversStatus[server] === undefined || serversStatus[server].c !== true || await serverConnector.LOG_DEPOSIT(txHash, from, amount, server, character) !== true)
             console.log(dateTime() + " | You must manually reward character " + character + " with " + amount + " tokens. Server `" + server + "` database currently unavailable");
         else
-            console.log(dateTime() + " | Deposit " + amount + " " + symbol + ", from " + from + ", to " + character + ", server `" + server + "`");
-
+            console.log(dateTime() + " | Deposit: " + amount + " " + symbol + ", from " + from + ", to " + character + ", server `" + server + "`");
     }).on("logWithdrawal", async (txHash, to, symbol, amount, server, character, refund) => {
 
-        if (serversStatus[server] === undefined || serversStatus[server].c !== true)
+        if (serversStatus[server] === undefined || serversStatus[server].c !== true || await serverConnector.LOG_WITHDRAWAL(txHash, to, amount, server, character, refund) !== true)
             console.log(dateTime() + " | You must manually remove " + amount + " tokens from character " + character + ". Server `" + server + "` database currently unavailable");
-        else {
-
-            console.log(txHash + " " + to + " " + symbol + " " + amount + " " + server + " " + character + " " + refund)
-
-            //if (await connector.REMOVE_REFUND(server, character, amount, refund) === false)
-            //    console.log(dateTime() + " | You must remove " + amount + " tokens from character " + character + " ingame. Automatic token decrease failed");
-            //else if (await connector.LOG_WITHDRAWAL(txHash, server, character, to, symbol, amount) !== false)
-            //    console.log(dateTime() + " | Withdrawal from character " + character + " to address " + to + " (" + amount + " " + symbol + ")");
-        }
+        else
+            console.log(dateTime() + " | Withdrawal: " + amount + " tokens, from " + character + ", to " + to + ", server `" + server + "`");
     }).on("request", async (requestObject, requestCB) => {
 
         if (serversStatus["ls"].c !== true)
@@ -380,10 +392,20 @@ wsClient.on("connect", () => {
                         requestCB({ "fail": "character undefined" });
                     else
                         requestCB({ "data": await serverConnector.GET_CHARACTER_BALANCE(requestObject.id, data.character) });
+
+                    break;
                 }
                 case "getClientBal": {
 
                     requestCB({ "data": await serverConnector.GET_TOTAL_CLIENT_BALANCE() });
+
+                    break;
+                }
+                case "doWithdraw": {
+
+                    requestCB({ "data": await serverConnector.CREATE_REFUND(data.address, data.amount, data.server, data.character, data.refund) });
+
+                    break;
                 }
                 default: {
 
