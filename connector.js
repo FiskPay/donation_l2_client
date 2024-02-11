@@ -360,7 +360,7 @@ class Connector extends EventEmitter {
         try {
 
             temporary = (await connection.query("SELECT SUM(balance) AS balance FROM gameservers;"))[0][0];
-            result = temporary.balance;
+            result = (temporary.balance != null) ? (temporary.balance) : ("0");
         }
         catch (error) {
 
@@ -528,7 +528,7 @@ class Connector extends EventEmitter {
         try {
 
             temporary = (await connection.query("SELECT SUM(i." + iitam + ") AS balance FROM items AS i, characters AS c WHERE c." + cchid + " = i." + ichid + " AND c." + cchnm + " = ? AND i." + iitmtyid + " = ? AND i.loc = 'inventory';", [charname, this.#serverReward[id]]))[0][0];
-            result = temporary.balance;
+            result = (temporary.balance != null) ? (temporary.balance) : ("0");
         }
         catch (error) {
 
@@ -563,7 +563,7 @@ class Connector extends EventEmitter {
             await connectionGS.query("START TRANSACTION;");
 
             temporary = (await connectionGS.query("SELECT SUM(" + iitam + ") AS balance FROM items WHERE  " + iitmtyid + " = ?;", [this.#serverReward[id]]))[0][0];
-            temporary = temporary.balance;
+            temporary = (temporary.balance != null) ? (temporary.balance) : (0);
 
             temporary = (await connectionLS.query("UPDATE gameservers SET balance = ? WHERE " + srvid + " = ?;", [temporary, id]))[0];
             result = (temporary.changedRows == 1)
@@ -623,9 +623,7 @@ class Connector extends EventEmitter {
 
             if (temporary.length == 1) {
 
-                const itemID = temporary[0][iid];
-
-                temporary = (await connectionGS.query("UPDATE items SET " + iitam + " = " + iitam + " + ? WHERE " + iid + " = ? LIMIT 1;", [amount, itemID]))[0];
+                temporary = (await connectionGS.query("UPDATE items SET " + iitam + " = " + iitam + " + ? WHERE " + iid + " = ? LIMIT 1;", [amount, temporary[0][iid]]))[0];
                 result = (temporary.changedRows == 1);
             }
             else {
@@ -636,8 +634,9 @@ class Connector extends EventEmitter {
 
                     testID++;
                     temporary = (await connectionGS.query("SELECT COUNT(" + iid + ") AS instances FROM items WHERE " + iid + " = ?;", [testID]))[0][0];
+                    temporary = (temporary.instances != null) ? (temporary.instances) : (0);
 
-                } while (temporary.instances > 0)
+                } while (temporary > 0)
 
                 temporary = (await connectionGS.query("INSERT INTO items (" + ichid + ", " + iid + ", " + iitmtyid + ", " + iitam + ", loc) VALUES (?, ?, ?, ?, 'inventory');", [charID, testID, this.#serverReward[id], amount]))[0];
                 result = (temporary.affectedRows == 1);
@@ -706,7 +705,7 @@ class Connector extends EventEmitter {
 
                 temporary = (await connectionGS.query("SELECT SUM(" + iitam + ") AS balance FROM items WHERE " + iitmtyid + " = ? AND " + ichid + " = ? AND loc = 'inventory';", [this.#serverReward[id], charID]))[0][0];
 
-                const charBalance = temporary.balance;
+                const charBalance = (temporary.balance != null) ? (temporary.balance) : (0);
 
                 if (charBalance >= amount) {
 
@@ -717,8 +716,8 @@ class Connector extends EventEmitter {
 
                     while (remainAmount > 0) {
 
-                        let rowItemAmount = temporary[index][iitam];
-                        let rowItemID = temporary[index][iid];
+                        const rowItemAmount = temporary[index][iitam];
+                        const rowItemID = temporary[index][iid];
 
                         if (rowItemAmount == remainAmount && (await connectionGS.query("DELETE FROM items WHERE " + iid + " = ? LIMIT 1;", [rowItemID]))[0].affectedRows == 1)
                             remainAmount = 0;
@@ -784,7 +783,7 @@ class Connector extends EventEmitter {
 
             temporary = (await connectionGS.query("SELECT " + cchid + " FROM characters WHERE  " + cchnm + " = ? LIMIT 1;", [character]))[0][0];
 
-            if (((await connectionLS.query("DELETE FROM fiskpay_temporary WHERE server_id = ? AND character_id = ? AND amount = ? AND refund = ? LIMIT 1;", [id, temporary[cchid], amount, refund]))[0]).affectedRows == 1)
+            if ((await connectionLS.query("DELETE FROM fiskpay_temporary WHERE server_id = ? AND character_id = ? AND amount = ? AND refund = ? LIMIT 1;", [id, temporary[cchid], amount, refund]))[0].affectedRows == 1)
                 if ((await connectionLS.query("INSERT INTO fiskpay_withdrawals (server_id, transaction_hash, character_name, wallet_address, amount) VALUES (?, ?, ?, ?, ?);", [id, txHash, character, to, amount]))[0].affectedRows == 1)
                     result = true;
         }
@@ -812,350 +811,90 @@ class Connector extends EventEmitter {
 
             return result;
         }
-
     }
-    /*
-    
 
- 
-ADD_REFUND_AND_DECREASE_BALANCE = async (serverid, character, amount, address, refund) => {
- 
-    return await new Promise((resolve, reject) => {
-  
-        this.#gameServer.query("SELECT account_name, obj_Id FROM characters WHERE char_name = ?", [character], async (error, result) => {
- 
-            if (error)
-                return reject(error);
- 
-            if (!(result && result.length == 1))
-                return resolve(false);
- 
-            let ethAddress = await new Promise((res) => {
- 
-                this.#loginServer.query("SELECT ethAddress FROM accounts WHERE login = ? AND ethAddress REGEXP '^0x[a-fA-F0-9]{40}$'", [result[0].account_name], (e, r) => {
- 
-                    if (e)
-                        return res({ "error": e });
- 
-                    if (r && r.length == 1)
-                        return res(r[0].ethAddress);
- 
-                    return res(false);
-                });
-            });
- 
-            if (ethAddress.error)
-                return reject(ethAddress.error);
- 
-            if (ethAddress === false || ethAddress != address)
-                return resolve(false);
- 
-            data = await new Promise((res) => {
- 
-                if (data == amount) {
- 
-                    this.#gameServer.query("DELETE FROM `items` WHERE `owner_id` = ? AND item_id = ? AND `loc` = 'inventory'", [result[0].obj_Id, this.#reward], (e) => {
- 
-                        if (e)
-                            return res({ "error": e });
- 
-                        return res(true);
-                    });
-                }
-                else if (data > amount) {
- 
-                    this.#gameServer.query("UPDATE `items` SET `count` = `count` - ? WHERE `owner_id` = ? AND item_id = ? AND `loc` = 'inventory'", [amount, result[0].obj_Id, this.#reward], (e) => {
- 
-                        if (e)
-                            return res({ "error": e });
- 
-                        return res(true);
-                    });
-                }
-                else
-                    return res(false);
-            });
- 
-            if (data.error)
-                return reject(data.error);
- 
-            if (data === false)
-                return resolve(false);
- 
-            data = await new Promise((res) => {
- 
-                this.#loginServer.query("INSERT INTO `fiskpay_temporary` (`server_id`, `owner`, `item`, `amount`, `refund`) VALUES (?, ?, ?, ?, ?)", [serverid, result[0].obj_Id, this.#reward, amount, refund], (e, r) => {
- 
-                    if (e)
-                        return res({ "error": e });
- 
-                    return res(refund);
-                });
-            });
- 
-            if (data.error)
-                return reject(data.error);
- 
-            return resolve(data);
-        });
-    });
-}
- 
-INCREASE_BALANCE = async (character, amount) => {
- 
-    return await new Promise((resolve, reject) => {
- 
-        this.#gameServer.query("SELECT `obj_Id` FROM `characters` WHERE `char_name` = ?", [character], async (error, result) => {
- 
-            if (error)
-                return reject(error);
- 
-            if (!(result && result.length == 1))
-                return resolve(false);
- 
-            let data;
- 
-            data = await new Promise((res) => {
- 
-                this.#gameServer.query("SELECT `count` FROM `items` WHERE `owner_id` = ? AND item_id = ? AND `loc` = 'inventory'", [result[0].obj_Id, this.#reward], (e, r) => {
- 
-                    if (e)
-                        return res({ "error": e });
- 
-                    if (r && r.length == 1)
-                        return res(r[0].count);
- 
-                    if (r && r.length == 0)
-                        return res(-1);
- 
-                    return res(false);
-                });
-            });
- 
-            if (data.error)
-                return reject(data.error);
- 
-            if (data === false)
-                return resolve(false);
- 
-            data = await new Promise(async (res) => {
- 
-                if (data === -1) {
- 
-                    let objID;
- 
-                    do {
- 
-                        objID = await new Promise((rsp) => {
- 
-                            const testID = Math.floor(Math.random() * 2147483646);
- 
-                            this.#gameServer.query("SELECT `object_id` FROM `items` WHERE `object_id` = ?", [testID], (e, r) => {
- 
-                                if (!e && r && r.length == 0)
-                                    return rsp(testID);
- 
-                                return rsp(false);
-                            });
-                        })
- 
-                    } while (objID === false);
- 
-                    this.#gameServer.query("INSERT INTO `items` (`owner_id`, `object_id`, `item_id`, `count`, `loc`) VALUES (?, ?, ?, ?, 'inventory')", [result[0].obj_Id, objID, this.#reward, amount], (e) => {
- 
-                        if (e)
-                            return res({ "error": e })
- 
-                        return res(true);
-                    });
+    REFUND_CHARACTERS = async (id) => {
+
+        const connectionLS = await this.#serverConnections["ls"].getConnection();
+        const connectionGS = await this.#serverConnections[id].getConnection();
+        const iid = this.#serverTables[id].items.itemId;;
+        const ichid = this.#serverTables[id].items.characterId;
+        const iitmtyid = this.#serverTables[id].items.itemTypeId;
+        const iitam = this.#serverTables[id].items.itemAmount;
+
+        let result = false;
+        let temporary;
+
+        try {
+
+            await connectionLS.query("SET autocommit = 0;");
+            await connectionGS.query("SET autocommit = 0;");
+            await connectionLS.query("START TRANSACTION;");
+            await connectionGS.query("START TRANSACTION;");
+
+            result = true;
+
+            for (const row of ((await connectionLS.query("SELECT character_id, amount, refund FROM fiskpay_temporary WHERE  refund < ? AND server_id = ?", [Math.floor(Date.now() / 1000), id]))[0])) {
+
+                const charID = row.character_id;
+                const amount = row.amount;
+                const refund = row.refund;
+
+                temporary = (await connectionGS.query("SELECT " + iid + " FROM items WHERE  " + iitmtyid + " = ? AND loc = 'inventory' AND " + ichid + " = ? LIMIT 1;", [this.#serverReward[id], charID]))[0];
+
+                if (temporary.length == 1) {
+
+                    if (!((await connectionGS.query("UPDATE items SET " + iitam + " = " + iitam + " + ? WHERE " + iid + " = ? LIMIT 1;", [amount, temporary[0][iid]]))[0].changedRows == 1 && (await connectionLS.query("DELETE FROM fiskpay_temporary WHERE server_id = ? AND character_id = ? AND amount = ? AND refund = ? LIMIT 1;", [id, charID, amount, refund]))[0].affectedRows == 1)) {
+
+                        result = false;
+                        break;
+                    }
                 }
                 else {
- 
-                    this.#gameServer.query("UPDATE `items` SET `count` = `count` + ? WHERE `owner_id` = ? AND item_id = ? AND `loc` = 'inventory'", [amount, result[0].obj_Id, this.#reward], (e) => {
- 
-                        if (e)
-                            return res({ "error": e })
- 
-                        return res(true);
-                    });
+
+                    let testID = 2100000000 + Math.floor(Math.random() * 9999900);
+
+                    do {
+
+                        testID++;
+                        temporary = (await connectionGS.query("SELECT COUNT(" + iid + ") AS instances FROM items WHERE " + iid + " = ?;", [testID]))[0][0];
+                        temporary = (temporary.instances != null) ? (temporary.instances) : (0);
+
+                    } while (temporary > 0)
+
+                    if (!((await connectionGS.query("INSERT INTO items (" + ichid + ", " + iid + ", " + iitmtyid + ", " + iitam + ", loc) VALUES (?, ?, ?, ?, 'inventory');", [charID, testID, this.#serverReward[id], amount]))[0].affectedRows == 1 && (await connectionLS.query("DELETE FROM fiskpay_temporary WHERE server_id = ? AND character_id = ? AND amount = ? AND refund = ? LIMIT 1;", [id, charID, amount, refund]))[0].affectedRows == 1)) {
+
+                        result = false;
+                        break;
+                    }
                 }
-            });
- 
-            if (data.error)
-                return reject(data.error);
- 
-            return resolve(true);
-        });
-    });
-}
- 
-REMOVE_REFUND = async (serverid, character, amount, refund) => {
- 
-    return await new Promise((resolve, reject) => {
- 
-        this.#gameServer.query("SELECT `obj_Id` FROM `characters` WHERE `char_name` = ?", [character], async (error, result) => {
- 
-            if (error)
-                return reject(error);
- 
-            if (!(result && result.length == 1))
-                return resolve(false);
- 
-            let data;
- 
-            data = await new Promise((res) => {
- 
-                this.#loginServer.query("DELETE FROM `fiskpay_temporary` WHERE `server_id` = ? AND `owner` = ? AND item = ? AND `amount` = ? AND `refund` = ?", [serverid, result[0].obj_Id, this.#reward, amount, refund], (e) => {
- 
-                    if (e)
-                        return res(e);
- 
-                    return res(true);
-                });
-            });
- 
-            if (data.error)
-                return reject(data.error);
- 
-            return resolve(true);
-        });
-    });
-}
- 
+            };
+        }
+        catch (error) {
 
- 
-LOG_WITHDRAWAL = async (txHash, serverid, character, to, symbol, amount) => {
- 
-    return await new Promise((resolve) => {
- 
-        this.#loginServer.query("INSERT INTO `fiskpay_withdrawals` (`txHash`, `server_id`, `character`, `to`, `symbol`, `amount`) VALUES (?, ?, ?, ?, ?, ?)", [txHash, serverid, character, to, symbol, amount], (error) => {
- 
-            if (error)
-                return reject(error);
- 
-            return resolve(true);
-        });
-    });
-}
- 
-REFUND_EXPIRED = async () => {
- 
-    const now = Math.floor(Date.now() / 1000);
- 
-    let expiredTxs = await this.#gameServer.query("SELECT owner, amount, refund FROM fiskpay_temporary WHERE item = ? AND refund < ? ", [this.#reward, now]);
- 
-    // this.#loginServer.query("INSERT INTO `fiskpay_balances` (`server_id`, `balance`, `nChars`) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE `balance` = ?, `nChars` = ?", [serverid, balance, nChars, balance, nChars]
- 
-    expiredTxs[0].forEach(row => {
- 
-        console.log(row.owner + " " + row.amount);
-    });
- 
-    return true;
-    
-    return await new Promise((resolve, reject) => {
- 
-        this.#loginServer.query("SELECT `owner`, `amount`, `refund` FROM `fiskpay_temporary` WHERE `server_id` = ? AND `item` = ? AND `refund` < ? ", [serverid, this.#reward, now], async (error, result) => {
- 
-            if (error)
-                return reject(error);
- 
-            const nResult = result.length;
- 
-            let data;
- 
-            for (let i = 0; i < nResult; i++) {
- 
-                data = await new Promise((res) => {
- 
-                    this.#gameServer.query("SELECT `count` FROM `items` WHERE `owner_id` = ? AND item_id = ? AND `loc` = 'inventory'", [result[i].owner, this.#reward], (e, r) => {
- 
-                        if (e)
-                            return res({ "error": e });
- 
-                        if (r && r.length == 1)
-                            return res(r[0].count);
- 
-                        if (r && r.length == 0)
-                            return res(-1);
- 
-                        return res(false);
-                    });
-                });
- 
-                if (data.error)
-                    return reject(data.error);
- 
-                if (data === false)
-                    continue;
- 
-                data = await new Promise(async (res) => {
- 
-                    if (data === -1) {
- 
-                        let objID;
- 
-                        do {
- 
-                            objID = await new Promise((rsp) => {
- 
-                                const testID = Math.floor(Math.random() * 2147483646);
- 
-                                this.#gameServer.query("SELECT `object_id` FROM `items` WHERE `object_id` = ?", [testID], (e, r) => {
- 
-                                    if (!e && r && r.length == 0)
-                                        return rsp(testID);
- 
-                                    return rsp(false);
-                                });
-                            })
- 
-                        } while (objID === false);
- 
-                        this.#gameServer.query("INSERT INTO `items` (`owner_id`, `object_id`, `item_id`, `count`, `loc`) VALUES (?, ?, ?, ?, 'inventory')", [result[i].owner, objID, this.#reward, result[i].amount], (e) => {
- 
-                            if (e)
-                                return res({ "error": e })
- 
-                            return res(true);
-                        });
-                    }
-                    else {
- 
-                        this.#gameServer.query("UPDATE `items` SET `count` = `count` + ? WHERE `owner_id` = ? AND item_id = ? AND `loc` = 'inventory'", [result[i].amount, result[i].owner, this.#reward], (e) => {
- 
-                            if (e)
-                                return res({ "error": e })
- 
-                            return res(true);
-                        });
-                    }
-                });
- 
-                if (data.error)
-                    return reject(data.error);
- 
-                data = await new Promise((res) => {
- 
-                    this.#loginServer.query("DELETE FROM `fiskpay_temporary` WHERE `server_id` = ? AND `owner` = ? AND item = ? AND `amount` = ? AND `refund` = ?", [serverid, result[i].owner, this.#reward, result[i].amount, result[i].refund], (e) => {
- 
-                        if (e)
-                            return res({ "error": e });
- 
-                        return res(true);
-                    });
-                });
- 
-                if (data.error)
-                    return reject(data.error);
+            result = false;
+
+            this.emit("error", error);
+        }
+        finally {
+
+            if (result === true) {
+
+                await connectionLS.query("COMMIT;");
+                await connectionGS.query("COMMIT;");
             }
- 
-            return resolve(true);
-        });
-    });
-}
+            else {
 
-*/
+                await connectionLS.query("ROLLBACK;");
+                await connectionGS.query("ROLLBACK;");
+            }
+
+            connectionLS.release();
+            connectionGS.release();
+
+            return result;
+        }
+    }
 }
 
 module.exports = Connector;

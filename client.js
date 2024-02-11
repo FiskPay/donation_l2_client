@@ -228,7 +228,7 @@ wsClient.on("connect", () => {
 
                         if (refund > 20) {
 
-                            //await serverConnector.REFUND_CHARACTERS(id);
+                            await serverConnector.REFUND_CHARACTERS(id);
                             await serverConnector.UPDATE_GAMESERVER_BALANCE(id);
                             refund = 0;
                         }
