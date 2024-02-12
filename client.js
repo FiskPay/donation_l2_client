@@ -228,15 +228,12 @@ wsClient.on("connect", () => {
 
                         if (refund > 20) {
 
+                            refund = -1;
                             await serverConnector.REFUND_CHARACTERS(id);
-                            await serverConnector.UPDATE_GAMESERVER_BALANCE(id);
-                            refund = 0;
                         }
-                        else {
 
-                            await serverConnector.UPDATE_GAMESERVER_BALANCE(id);
-                            refund++;
-                        }
+                        refund++;
+                        await serverConnector.UPDATE_GAMESERVER_BALANCE(id);
                     }, 5000);
                 }
 
@@ -347,7 +344,7 @@ wsClient.on("connect", () => {
                     if (data.walletAddress == undefined)
                         requestCB({ "fail": "walletAddress undefined" });
                     else
-                        requestCB({ "data": await serverConnector.GET_ACCOUNTS(data.walletAddress) });
+                        requestCB(await serverConnector.GET_ACCOUNTS(data.walletAddress));
 
                     break;
                 }
@@ -360,7 +357,7 @@ wsClient.on("connect", () => {
                     else if (data.walletAddress == undefined)
                         requestCB({ "fail": "walletAddress undefined" });
                     else
-                        requestCB({ "data": await serverConnector.ADD_ACCOUNT(data.username, data.password, data.walletAddress) });
+                        requestCB(await serverConnector.ADD_ACCOUNT(data.username, data.password, data.walletAddress));
 
                     break;
                 }
@@ -373,7 +370,7 @@ wsClient.on("connect", () => {
                     else if (data.walletAddress == undefined)
                         requestCB({ "fail": "walletAddress undefined" });
                     else
-                        requestCB({ "data": await serverConnector.REMOVE_ACCOUNT(data.username, data.password, data.walletAddress) });
+                        requestCB(await serverConnector.REMOVE_ACCOUNT(data.username, data.password, data.walletAddress));
 
                     break;
                 }
@@ -382,7 +379,7 @@ wsClient.on("connect", () => {
                     if (data.username == undefined)
                         requestCB({ "fail": "username undefined" });
                     else
-                        requestCB({ "data": await serverConnector.GET_CHARACTERS(requestObject.id, data.username) });
+                        requestCB(await serverConnector.GET_CHARACTERS(requestObject.id, data.username));
 
                     break;
                 }
@@ -391,19 +388,19 @@ wsClient.on("connect", () => {
                     if (data.character == undefined)
                         requestCB({ "fail": "character undefined" });
                     else
-                        requestCB({ "data": await serverConnector.GET_CHARACTER_BALANCE(requestObject.id, data.character) });
+                        requestCB(await serverConnector.GET_CHARACTER_BALANCE(requestObject.id, data.character));
 
                     break;
                 }
                 case "getClientBal": {
 
-                    requestCB({ "data": await serverConnector.GET_TOTAL_CLIENT_BALANCE() });
+                    requestCB(await serverConnector.GET_TOTAL_CLIENT_BALANCE());
 
                     break;
                 }
                 case "doWithdraw": {
 
-                    requestCB({ "data": await serverConnector.CREATE_REFUND(data.address, data.amount, data.server, data.character, data.refund) });
+                    requestCB(await serverConnector.CREATE_REFUND(data.address, data.amount, data.server, data.character, data.refund));
 
                     break;
                 }
@@ -453,7 +450,15 @@ wsClient.on("connect", () => {
     console.log(dateTime() + " |");
     console.log(dateTime() + " | Connecting to gameserver(s) database...");
 
-    for (const id of await serverConnector.GET_IDS()) {
+    const serverIDs = await serverConnector.GET_IDS();
+
+    if (serverIDs.fail !== undefined) {
+
+        console.log(dateTime() + " | " + serverIDs.fail);
+        process.exit();
+    }
+
+    for (const id of serverIDs.data) {
 
         if (!(connectorConfig[id] && connectorConfig[id].rewardId && connectorConfig[id].dbName && connectorConfig[id].dbIPAddress && connectorConfig[id].dbPort && connectorConfig[id].dbUsername && connectorConfig[id].dbPassword && connectorConfig[id].dbTableColumns && connectorConfig[id].dbTableColumns.characters && connectorConfig[id].dbTableColumns.items)) {
 
