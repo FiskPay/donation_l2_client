@@ -233,7 +233,7 @@ wsClient.on("connect", () => {
                         }
 
                         refund++;
-                        await serverConnector.UPDATE_GAMESERVER_BALANCE(id);
+                        serverConnector.UPDATE_GAMESERVER_BALANCE(id);
                     }, 5000);
                 }
 
@@ -245,7 +245,7 @@ wsClient.on("connect", () => {
         else {
 
             if (serversStatus[id].v !== false)
-                setTimeout(async () => { await serverConnector.CONNECT_SERVER(id); }, 10000);
+                setTimeout(async () => { serverConnector.CONNECT_SERVER(id); }, 10000);
 
             if (serversStatus[id].c !== false) {
 
@@ -317,16 +317,16 @@ wsClient.on("connect", () => {
         console.log(dateTime() + " | Service temporary unavailable");
     }).on("logDeposit", async (txHash, from, symbol, amount, server, character) => {
 
-        if (serversStatus[server] === undefined || serversStatus[server].c !== true || await serverConnector.LOG_DEPOSIT(txHash, from, amount, server, character) !== true)
-            console.log(dateTime() + " | You must manually reward character " + character + " with " + amount + " tokens. Server `" + server + "` database currently unavailable");
-        else
+        if (serversStatus[server] !== undefined && serversStatus[server].c === true && await serverConnector.LOG_DEPOSIT(txHash, from, amount, server, character) === true)
             console.log(dateTime() + " | Deposit: " + amount + " " + symbol + ", from " + from + ", to " + character + ", server `" + server + "`");
+        else
+            console.log(dateTime() + " | You must manually reward character " + character + " with " + amount + " tokens. Server `" + server + "` database currently unavailable");
     }).on("logWithdrawal", async (txHash, to, symbol, amount, server, character, refund) => {
 
-        if (serversStatus[server] === undefined || serversStatus[server].c !== true || await serverConnector.LOG_WITHDRAWAL(txHash, to, amount, server, character, refund) !== true)
-            console.log(dateTime() + " | You must manually remove " + amount + " tokens from character " + character + ". Server `" + server + "` database currently unavailable");
-        else
+        if (serversStatus[server] !== undefined && serversStatus[server].c === true && await serverConnector.LOG_WITHDRAWAL(txHash, to, amount, server, character, refund) === true)
             console.log(dateTime() + " | Withdrawal: " + amount + " tokens, from " + character + ", to " + to + ", server `" + server + "`");
+        else
+            console.log(dateTime() + " | You must manually remove " + amount + " tokens from character " + character + ". Server `" + server + "` database currently unavailable");
     }).on("request", async (requestObject, requestCB) => {
 
         if (serversStatus["ls"].c !== true)
@@ -452,13 +452,10 @@ wsClient.on("connect", () => {
 
     const serverIDs = await serverConnector.GET_IDS();
 
-    if (serverIDs.fail !== undefined) {
-
-        console.log(dateTime() + " | " + serverIDs.fail);
+    if (!(typeof serverIDs === "object" && Array.isArray(serverIDs)))
         process.exit();
-    }
 
-    for (const id of serverIDs.data) {
+    for (const id of serverIDs) {
 
         if (!(connectorConfig[id] && connectorConfig[id].rewardId && connectorConfig[id].dbName && connectorConfig[id].dbIPAddress && connectorConfig[id].dbPort && connectorConfig[id].dbUsername && connectorConfig[id].dbPassword && connectorConfig[id].dbTableColumns && connectorConfig[id].dbTableColumns.characters && connectorConfig[id].dbTableColumns.items)) {
 

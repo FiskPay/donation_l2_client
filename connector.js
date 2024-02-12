@@ -329,12 +329,10 @@ class Connector extends EventEmitter {
         try {
 
             temporary = (await connection.query("SELECT " + id + " FROM gameservers;"))[0];
-            temporary = temporary.map(key => key[id])
-            result = { "data": temporary }
+            result = temporary.map(key => key[id])
         }
         catch (error) {
 
-            result = { "fail": "Could not get gameserver ids" };
             this.emit("error", error);
         }
         finally {
@@ -354,7 +352,7 @@ class Connector extends EventEmitter {
         try {
 
             temporary = (await connection.query("SELECT SUM(balance) AS balance FROM gameservers;"))[0][0];
-            temporary = (temporary.balance != null) ? (temporary.balance) : (0);
+            temporary = String((temporary.balance != null) ? (temporary.balance) : ("0"));
             result = { "data": temporary };
         }
         catch (error) {
@@ -521,7 +519,7 @@ class Connector extends EventEmitter {
         try {
 
             temporary = (await connection.query("SELECT SUM(i." + iitam + ") AS balance FROM items AS i, characters AS c WHERE c." + cchid + " = i." + ichid + " AND c." + cchnm + " = ? AND i." + iitmtyid + " = ? AND i.loc = 'inventory';", [charname, this.#serverReward[id]]))[0][0];
-            temporary = (temporary.balance != null) ? (temporary.balance) : (0);
+            temporary = String((temporary.balance != null) ? (temporary.balance) : ("0"));
             result = { "data": temporary };
         }
         catch (error) {
@@ -530,6 +528,7 @@ class Connector extends EventEmitter {
             this.emit("error", error);
         }
         finally {
+
 
             connection.release();
             return result;
@@ -555,7 +554,7 @@ class Connector extends EventEmitter {
             await connectionGS.query("START TRANSACTION;");
 
             temporary = (await connectionGS.query("SELECT SUM(" + iitam + ") AS balance FROM items WHERE  " + iitmtyid + " = ?;", [this.#serverReward[id]]))[0][0];
-            temporary = (temporary.balance != null) ? (temporary.balance) : (0);
+            temporary = String((temporary.balance != null) ? (temporary.balance) : ("0"));
 
             temporary = (await connectionLS.query("UPDATE gameservers SET balance = ? WHERE " + srvid + " = ?;", [temporary, id]))[0];
             result = (temporary.changedRows == 1);
@@ -613,8 +612,9 @@ class Connector extends EventEmitter {
 
             if (temporary.length == 1) {
 
-                temporary = (await connectionGS.query("UPDATE items SET " + iitam + " = " + iitam + " + ? WHERE " + iid + " = ? LIMIT 1;", [amount, temporary[0][iid]]))[0];
-                temporary = (temporary.changedRows == 1);
+                if ((await connectionGS.query("UPDATE items SET " + iitam + " = " + iitam + " + ? WHERE " + iid + " = ? LIMIT 1;", [amount, temporary[0][iid]]))[0].changedRows == 1)
+                    if ((await connectionLS.query("INSERT INTO fiskpay_deposits (server_id, transaction_hash, character_name, wallet_address, amount) VALUES (?, ?, ?, ?, ?);", [id, txHash, character, from, amount]))[0].affectedRows == 1)
+                        result = true;
             }
             else {
 
@@ -624,17 +624,13 @@ class Connector extends EventEmitter {
 
                     testID++;
                     temporary = (await connectionGS.query("SELECT COUNT(" + iid + ") AS instances FROM items WHERE " + iid + " = ?;", [testID]))[0][0];
-                    temporary = (temporary.instances != null) ? (temporary.instances) : (0);
 
-                } while (temporary > 0)
+                } while (temporary.instances > 0)
 
-                temporary = (await connectionGS.query("INSERT INTO items (" + ichid + ", " + iid + ", " + iitmtyid + ", " + iitam + ", loc) VALUES (?, ?, ?, ?, 'inventory');", [charID, testID, this.#serverReward[id], amount]))[0];
-                temporary = (temporary.affectedRows == 1);
+                if ((await connectionGS.query("INSERT INTO items (" + ichid + ", " + iid + ", " + iitmtyid + ", " + iitam + ", loc) VALUES (?, ?, ?, ?, 'inventory');", [charID, testID, this.#serverReward[id], amount]))[0].affectedRows == 1)
+                    if ((await connectionLS.query("INSERT INTO fiskpay_deposits (server_id, transaction_hash, character_name, wallet_address, amount) VALUES (?, ?, ?, ?, ?);", [id, txHash, character, from, amount]))[0].affectedRows == 1)
+                        result = true;
             }
-
-            if (temporary == true && (await connectionLS.query("INSERT INTO fiskpay_deposits (server_id, transaction_hash, character_name, wallet_address, amount) VALUES (?, ?, ?, ?, ?);", [id, txHash, character, from, amount]))[0].affectedRows == 1)
-                result = true;
-
         }
         catch (error) {
 
@@ -673,7 +669,7 @@ class Connector extends EventEmitter {
         const iitmtyid = this.#serverTables[id].items.itemTypeId;
         const iitam = this.#serverTables[id].items.itemAmount;
 
-        let result;
+        let result = { "data": false };
         let temporary;
 
         try {
@@ -694,7 +690,7 @@ class Connector extends EventEmitter {
 
                 temporary = (await connectionGS.query("SELECT SUM(" + iitam + ") AS balance FROM items WHERE " + iitmtyid + " = ? AND " + ichid + " = ? AND loc = 'inventory';", [this.#serverReward[id], charID]))[0][0];
 
-                const charBalance = (temporary.balance != null) ? (temporary.balance) : (0);
+                const charBalance = Number((temporary.balance != null) ? (temporary.balance) : (0));
 
                 if (charBalance >= amount) {
 
@@ -725,8 +721,6 @@ class Connector extends EventEmitter {
                 }
             }
 
-            if (result.data !== true)
-                result = { "data": false };
         }
         catch (error) {
 
@@ -810,6 +804,8 @@ class Connector extends EventEmitter {
         const iitmtyid = this.#serverTables[id].items.itemTypeId;
         const iitam = this.#serverTables[id].items.itemAmount;
 
+        const rewardID = this.#serverReward[id];
+
         let result = false;
         let temporary;
 
@@ -820,23 +816,26 @@ class Connector extends EventEmitter {
             await connectionLS.query("START TRANSACTION;");
             await connectionGS.query("START TRANSACTION;");
 
-            result = true;
+            const listOfExpired = ((await connectionLS.query("SELECT character_id, amount, refund FROM fiskpay_temporary WHERE  refund < ? AND server_id = ?", [Math.floor(Date.now() / 1000), id]))[0]);
+            const nListOfExpired = listOfExpired.length;
 
-            for (const row of ((await connectionLS.query("SELECT character_id, amount, refund FROM fiskpay_temporary WHERE  refund < ? AND server_id = ?", [Math.floor(Date.now() / 1000), id]))[0])) {
+            let done = 0;
+
+            for (const row of listOfExpired) {
 
                 const charID = row.character_id;
                 const amount = row.amount;
                 const refund = row.refund;
 
-                temporary = (await connectionGS.query("SELECT " + iid + " FROM items WHERE  " + iitmtyid + " = ? AND loc = 'inventory' AND " + ichid + " = ? LIMIT 1;", [this.#serverReward[id], charID]))[0];
+                temporary = (await connectionGS.query("SELECT " + iid + " FROM items WHERE  " + iitmtyid + " = ? AND loc = 'inventory' AND " + ichid + " = ? LIMIT 1;", [rewardID, charID]))[0];
 
                 if (temporary.length == 1) {
 
-                    if (!((await connectionGS.query("UPDATE items SET " + iitam + " = " + iitam + " + ? WHERE " + iid + " = ? LIMIT 1;", [amount, temporary[0][iid]]))[0].changedRows == 1 && (await connectionLS.query("DELETE FROM fiskpay_temporary WHERE server_id = ? AND character_id = ? AND amount = ? AND refund = ? LIMIT 1;", [id, charID, amount, refund]))[0].affectedRows == 1)) {
+                    const itemID = temporary[0][iid];
 
-                        result = false;
-                        break;
-                    }
+                    if ((await connectionGS.query("UPDATE items SET " + iitam + " = " + iitam + " + ? WHERE " + iid + " = ? LIMIT 1;", [amount, itemID]))[0].changedRows == 1)
+                        if ((await connectionLS.query("DELETE FROM fiskpay_temporary WHERE server_id = ? AND character_id = ? AND amount = ? AND refund = ? LIMIT 1;", [id, charID, amount, refund]))[0].affectedRows == 1)
+                            done++;
                 }
                 else {
 
@@ -846,22 +845,20 @@ class Connector extends EventEmitter {
 
                         testID++;
                         temporary = (await connectionGS.query("SELECT COUNT(" + iid + ") AS instances FROM items WHERE " + iid + " = ?;", [testID]))[0][0];
-                        temporary = (temporary.instances != null) ? (temporary.instances) : (0);
 
-                    } while (temporary > 0)
+                    } while (temporary.instances > 0)
 
-                    if (!((await connectionGS.query("INSERT INTO items (" + ichid + ", " + iid + ", " + iitmtyid + ", " + iitam + ", loc) VALUES (?, ?, ?, ?, 'inventory');", [charID, testID, this.#serverReward[id], amount]))[0].affectedRows == 1 && (await connectionLS.query("DELETE FROM fiskpay_temporary WHERE server_id = ? AND character_id = ? AND amount = ? AND refund = ? LIMIT 1;", [id, charID, amount, refund]))[0].affectedRows == 1)) {
-
-                        result = false;
-                        break;
-                    }
+                    if ((await connectionGS.query("INSERT INTO items (" + ichid + ", " + iid + ", " + iitmtyid + ", " + iitam + ", loc) VALUES (?, ?, ?, ?, 'inventory');", [charID, testID, rewardID, amount]))[0].affectedRows == 1)
+                        if ((await connectionLS.query("DELETE FROM fiskpay_temporary WHERE server_id = ? AND character_id = ? AND amount = ? AND refund = ? LIMIT 1;", [id, charID, amount, refund]))[0].affectedRows == 1)
+                            done++;
                 }
             };
+
+            result = (done == nListOfExpired);
         }
         catch (error) {
 
             result = false;
-
             this.emit("error", error);
         }
         finally {
