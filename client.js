@@ -162,7 +162,7 @@ process.emit = suppresser;
         console.log(dateTime() + " | Service temporary unavailable");
     }).on("logDeposit", async (txHash, from, symbol, amount, server, character) => {
 
-        if (typeof serversStatus[server] === undefined || serversStatus[server].c !== true)
+        if (typeof serversStatus[server] == undefined || serversStatus[server].c !== true)
             console.log(dateTime() + " | You must manually reward character " + character + " with " + amount + " tokens. Server `" + server + "` database currently unavailable");
         else if (await serverConnector.LOG_DEPOSIT(txHash, from, amount, server, character) === true)
             console.log(dateTime() + " | Deposit: " + amount + " " + symbol + ", from " + from + ", to " + character + ", server `" + server + "`");
@@ -170,7 +170,7 @@ process.emit = suppresser;
             console.log(dateTime() + " | You must manually reward character " + character + " with " + amount + " tokens. Server `" + server + "`");
     }).on("logWithdrawal", async (txHash, to, symbol, amount, server, character, refund) => {
 
-        if (typeof serversStatus[server] === undefined || serversStatus[server].c !== true)
+        if (typeof serversStatus[server] == undefined || serversStatus[server].c !== true)
             console.log(dateTime() + " | You must manually remove " + amount + " tokens from character " + character + ". Server `" + server + "` database currently unavailable");
         else if (await serverConnector.LOG_WITHDRAWAL(txHash, to, amount, server, character, refund) === true)
             console.log(dateTime() + " | Withdrawal: " + amount + " tokens, from " + character + ", to " + to + ", server `" + server + "`");
@@ -178,9 +178,9 @@ process.emit = suppresser;
             console.log(dateTime() + " | You must manually remove " + amount + " tokens from character " + character + ". Server `" + server + "`");
     }).on("request", async (requestObject, requestCB) => {
 
-        if (typeof serversStatus["ls"] === undefined || serversStatus["ls"].c !== true)
+        if (typeof serversStatus["ls"] == undefined || serversStatus["ls"].c !== true)
             requestCB({ "fail": "Login database unavailable" });
-        else if (typeof serversStatus[requestObject.id] === undefined || serversStatus[requestObject.id].c !== true)
+        else if (typeof serversStatus[requestObject.id] == undefined || serversStatus[requestObject.id].c !== true)
             requestCB({ "fail": "Server `" + requestObject.id + "` database unavailable" });
         else {
 
@@ -190,7 +190,7 @@ process.emit = suppresser;
 
                 case "getAccs": {
 
-                    if (data.walletAddress == undefined)
+                    if (typeof data.walletAddress == undefined)
                         requestCB({ "fail": "walletAddress undefined" });
                     else
                         requestCB(await serverConnector.GET_ACCOUNTS(data.walletAddress));
@@ -199,11 +199,11 @@ process.emit = suppresser;
                 }
                 case "addAcc": {
 
-                    if (data.username == undefined)
+                    if (typeof data.username == undefined)
                         requestCB({ "fail": "username undefined" });
-                    else if (data.password == undefined)
+                    else if (typeof data.password == undefined)
                         requestCB({ "fail": "password undefined" });
-                    else if (data.walletAddress == undefined)
+                    else if (typeof data.walletAddress == undefined)
                         requestCB({ "fail": "walletAddress undefined" });
                     else
                         requestCB(await serverConnector.ADD_ACCOUNT(data.username, data.password, data.walletAddress));
@@ -212,11 +212,11 @@ process.emit = suppresser;
                 }
                 case "removeAcc": {
 
-                    if (data.username == undefined)
+                    if (typeof data.username == undefined)
                         requestCB({ "fail": "username undefined" });
-                    else if (data.password == undefined)
+                    else if (typeof data.password == undefined)
                         requestCB({ "fail": "password undefined" });
-                    else if (data.walletAddress == undefined)
+                    else if (typeof data.walletAddress == undefined)
                         requestCB({ "fail": "walletAddress undefined" });
                     else
                         requestCB(await serverConnector.REMOVE_ACCOUNT(data.username, data.password, data.walletAddress));
@@ -225,7 +225,7 @@ process.emit = suppresser;
                 }
                 case "getChars": {
 
-                    if (data.username == undefined)
+                    if (typeof data.username == undefined)
                         requestCB({ "fail": "username undefined" });
                     else
                         requestCB(await serverConnector.GET_CHARACTERS(requestObject.id, data.username));
@@ -234,7 +234,7 @@ process.emit = suppresser;
                 }
                 case "getCharBal": {
 
-                    if (data.character == undefined)
+                    if (typeof data.character == undefined)
                         requestCB({ "fail": "character undefined" });
                     else
                         requestCB(await serverConnector.GET_CHARACTER_BALANCE(requestObject.id, data.character));
