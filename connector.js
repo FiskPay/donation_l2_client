@@ -698,7 +698,7 @@ class Connector extends EventEmitter {
                         index++;
                     }
 
-                    if (remainAmount == 0 && (await connectionLS.query("INSERT INTO fiskpay_temporary (server_id, character_id, amount, refund) VALUES (?, ?, ?, ?);", [id, character, amount, refund]))[0].affectedRows == 1)
+                    if (remainAmount == 0 && (await connectionLS.query("INSERT INTO fiskpay_temporary (server_id, character_id, amount, refund) VALUES (?, ?, ?, ?);", [id, charID, amount, refund]))[0].affectedRows == 1)
                         result = { "data": true };
                 }
             }

@@ -162,21 +162,25 @@ process.emit = suppresser;
         console.log(dateTime() + " | Service temporary unavailable");
     }).on("logDeposit", async (txHash, from, symbol, amount, server, character) => {
 
-        if (serversStatus[server] !== undefined && serversStatus[server].c === true && await serverConnector.LOG_DEPOSIT(txHash, from, amount, server, character) === true)
+        if (typeof serversStatus[server] === undefined || serversStatus[server].c !== true)
+            console.log(dateTime() + " | You must manually reward character " + character + " with " + amount + " tokens. Server `" + server + "` database currently unavailable");
+        else if (await serverConnector.LOG_DEPOSIT(txHash, from, amount, server, character) === true)
             console.log(dateTime() + " | Deposit: " + amount + " " + symbol + ", from " + from + ", to " + character + ", server `" + server + "`");
         else
-            console.log(dateTime() + " | You must manually reward character " + character + " with " + amount + " tokens. Server `" + server + "` database currently unavailable");
+            console.log(dateTime() + " | You must manually reward character " + character + " with " + amount + " tokens. Server `" + server + "`");
     }).on("logWithdrawal", async (txHash, to, symbol, amount, server, character, refund) => {
 
-        if (serversStatus[server] !== undefined && serversStatus[server].c === true && await serverConnector.LOG_WITHDRAWAL(txHash, to, amount, server, character, refund) === true)
+        if (typeof serversStatus[server] === undefined || serversStatus[server].c !== true)
+            console.log(dateTime() + " | You must manually remove " + amount + " tokens from character " + character + ". Server `" + server + "` database currently unavailable");
+        else if (await serverConnector.LOG_WITHDRAWAL(txHash, to, amount, server, character, refund) === true)
             console.log(dateTime() + " | Withdrawal: " + amount + " tokens, from " + character + ", to " + to + ", server `" + server + "`");
         else
-            console.log(dateTime() + " | You must manually remove " + amount + " tokens from character " + character + ". Server `" + server + "` database currently unavailable");
+            console.log(dateTime() + " | You must manually remove " + amount + " tokens from character " + character + ". Server `" + server + "`");
     }).on("request", async (requestObject, requestCB) => {
 
-        if (serversStatus["ls"].c !== true)
+        if (typeof serversStatus["ls"] === undefined || serversStatus["ls"].c !== true)
             requestCB({ "fail": "Login database unavailable" });
-        else if (serversStatus[requestObject.id].c !== true)
+        else if (typeof serversStatus[requestObject.id] === undefined || serversStatus[requestObject.id].c !== true)
             requestCB({ "fail": "Server `" + requestObject.id + "` database unavailable" });
         else {
 
