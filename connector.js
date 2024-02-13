@@ -179,17 +179,7 @@ class Connector extends EventEmitter {
         this.#remoteIPAddress = remoteIPAddress;
     }
 
-    GET_HASH = () => {
-
-        return crypto.createHash("sha256").update(this.#config["client"].password + this.#remoteIPAddress + this.#config["ls"].dbPort).digest("hex");
-    }
-
-    GET_ADDRESS = () => {
-
-        return this.#config["client"].walletAddress;
-    }
-
-    CONNECT_SERVER = async (id) => {
+    CONNECT_SERVER = async (id) => {//C
 
         const config = {
 
@@ -229,7 +219,7 @@ class Connector extends EventEmitter {
         return await new Promise((resolve) => setTimeout(() => { resolve(true); }, 500));
     }
 
-    DISCONNECT_SERVER = async (id) => {
+    DISCONNECT_SERVER = async (id) => {//C
 
         clearInterval(this.#serverInterval[id]);
         await this.#serverConnections[id].end();
@@ -237,7 +227,7 @@ class Connector extends EventEmitter {
         return true;
     }
 
-    VALIDATE_SERVER = async (id) => {
+    VALIDATE_SERVER = async (id) => {//C
 
         const connection = await this.#serverConnections[id].getConnection();
 
@@ -318,7 +308,7 @@ class Connector extends EventEmitter {
         }
     }
 
-    GET_IDS = async () => {
+    GET_IDS = async () => {//C
 
         const connection = await this.#serverConnections["ls"].getConnection();
         const id = this.#serverTables["ls"].gameservers.gameserverId;
@@ -342,7 +332,7 @@ class Connector extends EventEmitter {
         }
     }
 
-    GET_TOTAL_CLIENT_BALANCE = async () => {
+    GET_TOTAL_CLIENT_BALANCE = async () => {//P
 
         const connection = await this.#serverConnections["ls"].getConnection();
 
@@ -352,12 +342,11 @@ class Connector extends EventEmitter {
         try {
 
             temporary = (await connection.query("SELECT SUM(balance) AS balance FROM gameservers;"))[0][0];
-            temporary = String((temporary.balance != null) ? (temporary.balance) : ("0"));
-            result = { "data": temporary };
+            result = { "data": (String((temporary.balance != null) ? (temporary.balance) : ("0"))) };
         }
         catch (error) {
 
-            result = { "fail": "GET_TOTAL_CLIENT_BALANCE failed" };
+            result = { "fail": "GET_TOTAL_CLIENT_BALANCE SQL error" };
             this.emit("error", error);
         }
         finally {
@@ -367,7 +356,7 @@ class Connector extends EventEmitter {
         }
     }
 
-    GET_ACCOUNTS = async (ethAddress) => {
+    GET_ACCOUNTS = async (ethAddress) => {//P
 
         const connection = await this.#serverConnections["ls"].getConnection();
         const accnm = this.#serverTables["ls"].accounts.accountUsername;
@@ -378,12 +367,11 @@ class Connector extends EventEmitter {
         try {
 
             temporary = (await connection.query("SELECT " + accnm + " FROM accounts WHERE wallet_address = ?;", [ethAddress]))[0];
-            temporary = temporary.map(key => key[accnm]);
-            result = { "data": temporary };
+            result = { "data": (temporary.map(key => key[accnm])) };
         }
         catch (error) {
 
-            result = { "fail": "GET_ACCOUNTS failed" };
+            result = { "fail": "GET_ACCOUNTS SQL error" };
             this.emit("error", error);
         }
         finally {
@@ -393,7 +381,7 @@ class Connector extends EventEmitter {
         }
     }
 
-    ADD_ACCOUNT = async (username, password, ethAddress) => {
+    ADD_ACCOUNT = async (username, password, ethAddress) => {//P
 
         const connection = await this.#serverConnections["ls"].getConnection();
         const accnm = this.#serverTables["ls"].accounts.accountUsername;
@@ -404,23 +392,21 @@ class Connector extends EventEmitter {
 
         try {
 
-            temporary = (await connection.query("SELECT " + psw + " FROM accounts WHERE " + accnm + " = ?", [username]))[0][0];
-            temporary = temporary[psw];
+            await connection.query("SET autocommit = 0;");
+            await connection.query("START TRANSACTION;");
 
-            if (validatePassword(password, temporary)) {
+            temporary = (await connection.query("SELECT " + psw + ", wallet_address FROM accounts WHERE " + accnm + " = ?", [username]))[0][0];
 
-                await connection.query("SET autocommit = 0;");
-                await connection.query("START TRANSACTION;");
-
-                temporary = (await connection.query("UPDATE accounts SET wallet_address = ? WHERE " + accnm + " = ? AND wallet_address = 'not linked' AND " + psw + " = ?;", [ethAddress, username, temporary]))[0];
-                result = { "data": (temporary.changedRows == 1) };
-            }
+            if (temporary.wallet_address !== 'not linked')
+                result = { "fail": "Account already linked to an Ethereum address" };
+            else if (!validatePassword(password, temporary[psw]))
+                result = { "fail": "Username - password mismatch" };
             else
-                result = { "data": false };
+                result = { "data": ((await connection.query("UPDATE accounts SET wallet_address = ? WHERE " + accnm + " = ? AND wallet_address = 'not linked' AND " + psw + " = ?;", [ethAddress, username, temporary[psw]]))[0].changedRows == 1) };
         }
         catch (error) {
 
-            result = { "fail": "ADD_ACCOUNT failed" };
+            result = { "fail": "ADD_ACCOUNT SQL error" };
             this.emit("error", error);
         }
         finally {
@@ -435,7 +421,7 @@ class Connector extends EventEmitter {
         }
     }
 
-    REMOVE_ACCOUNT = async (username, password, ethAddress) => {
+    REMOVE_ACCOUNT = async (username, password, ethAddress) => {//P
 
         const connection = await this.#serverConnections["ls"].getConnection();
         const accnm = this.#serverTables["ls"].accounts.accountUsername;
@@ -446,23 +432,21 @@ class Connector extends EventEmitter {
 
         try {
 
-            temporary = (await connection.query("SELECT " + psw + " FROM accounts WHERE " + accnm + " = ?", [username]))[0][0];
-            temporary = temporary[psw];
+            await connection.query("SET autocommit = 0;");
+            await connection.query("START TRANSACTION;");
 
-            if (validatePassword(password, temporary)) {
+            temporary = (await connection.query("SELECT " + psw + ", wallet_address FROM accounts WHERE " + accnm + " = ?", [username]))[0][0];
 
-                await connection.query("SET autocommit = 0;");
-                await connection.query("START TRANSACTION;");
-
-                temporary = (await connection.query("UPDATE accounts SET wallet_address = 'not linked' WHERE " + accnm + " = ? AND wallet_address = ? AND " + psw + " = ?;", [username, ethAddress, temporary]))[0];
-                result = { "data": (temporary.changedRows == 1) };
-            }
+            if (temporary.wallet_address !== ethAddress)
+                result = { "fail": "Account not linked to your Ethereum address" };
+            else if (!validatePassword(password, temporary[psw]))
+                result = { "fail": "Username - password mismatch" };
             else
-                result = { "data": false };
+                result = { "data": ((await connection.query("UPDATE accounts SET wallet_address = 'not linked' WHERE " + accnm + " = ? AND wallet_address = ? AND " + psw + " = ?;", [username, ethAddress, temporary[psw]]))[0].changedRows == 1) };
         }
         catch (error) {
 
-            result = { "fail": "ADD_ACCOUNT failed" };
+            result = { "fail": "ADD_ACCOUNT SQL error" };
             this.emit("error", error);
         }
         finally {
@@ -477,7 +461,7 @@ class Connector extends EventEmitter {
         }
     }
 
-    GET_CHARACTERS = async (id, username) => {
+    GET_CHARACTERS = async (id, username) => {//P
 
         const connection = await this.#serverConnections[id].getConnection();
         const accnm = this.#serverTables[id].characters.accountUsername;
@@ -489,12 +473,11 @@ class Connector extends EventEmitter {
         try {
 
             temporary = (await connection.query("SELECT " + chnm + " FROM characters WHERE " + accnm + " = ?;", [username]))[0];
-            temporary = temporary.map(key => key[chnm]);
-            result = { "data": temporary };
+            result = { "data": (temporary.map(key => key[chnm])) };
         }
         catch (error) {
 
-            result = { "fail": "GET_CHARACTERS failed" };
+            result = { "fail": "GET_CHARACTERS SQL error" };
             this.emit("error", error);
         }
         finally {
@@ -504,7 +487,7 @@ class Connector extends EventEmitter {
         }
     }
 
-    GET_CHARACTER_BALANCE = async (id, charname) => {
+    GET_CHARACTER_BALANCE = async (id, charname) => {//P
 
         const connection = await this.#serverConnections[id].getConnection();
         const cchnm = this.#serverTables[id].characters.characterName;
@@ -519,12 +502,11 @@ class Connector extends EventEmitter {
         try {
 
             temporary = (await connection.query("SELECT SUM(i." + iitam + ") AS balance FROM items AS i, characters AS c WHERE c." + cchid + " = i." + ichid + " AND c." + cchnm + " = ? AND i." + iitmtyid + " = ? AND i.loc = 'inventory';", [charname, this.#serverReward[id]]))[0][0];
-            temporary = String((temporary.balance != null) ? (temporary.balance) : ("0"));
-            result = { "data": temporary };
+            result = { "data": (String((temporary.balance != null) ? (temporary.balance) : ("0"))) };
         }
         catch (error) {
 
-            result = { "fail": "GET_CHARACTER_BALANCE failed" };
+            result = { "fail": "GET_CHARACTER_BALANCE SQL error" };
             this.emit("error", error);
         }
         finally {
@@ -535,7 +517,7 @@ class Connector extends EventEmitter {
         }
     }
 
-    UPDATE_GAMESERVER_BALANCE = async (id) => {
+    UPDATE_GAMESERVER_BALANCE = async (id) => {//C
 
         const connectionLS = await this.#serverConnections["ls"].getConnection();
         const connectionGS = await this.#serverConnections[id].getConnection();
@@ -583,7 +565,7 @@ class Connector extends EventEmitter {
         }
     }
 
-    LOG_DEPOSIT = async (txHash, from, amount, id, character) => {
+    LOG_DEPOSIT = async (txHash, from, amount, id, character) => {//C
 
         const connectionLS = await this.#serverConnections["ls"].getConnection();
         const connectionGS = await this.#serverConnections[id].getConnection();
@@ -656,7 +638,7 @@ class Connector extends EventEmitter {
         }
     }
 
-    CREATE_REFUND = async (address, amount, id, character, refund) => {
+    CREATE_REFUND = async (address, amount, id, character, refund) => {//P
 
         const connectionLS = await this.#serverConnections["ls"].getConnection();
         const connectionGS = await this.#serverConnections[id].getConnection();
@@ -724,7 +706,7 @@ class Connector extends EventEmitter {
         }
         catch (error) {
 
-            result = { "fail": "CREATE_REFUND failed" };
+            result = { "fail": "CREATE_REFUND SQL error" };
             this.emit("error", error);
         }
         finally {
@@ -747,7 +729,7 @@ class Connector extends EventEmitter {
         }
     }
 
-    LOG_WITHDRAWAL = async (txHash, to, amount, id, character, refund) => {
+    LOG_WITHDRAWAL = async (txHash, to, amount, id, character, refund) => {//C
 
         const connectionLS = await this.#serverConnections["ls"].getConnection();
         const connectionGS = await this.#serverConnections[id].getConnection();
@@ -795,7 +777,7 @@ class Connector extends EventEmitter {
         }
     }
 
-    REFUND_CHARACTERS = async (id) => {
+    REFUND_CHARACTERS = async (id) => {//C
 
         const connectionLS = await this.#serverConnections["ls"].getConnection();
         const connectionGS = await this.#serverConnections[id].getConnection();
@@ -816,7 +798,7 @@ class Connector extends EventEmitter {
             await connectionLS.query("START TRANSACTION;");
             await connectionGS.query("START TRANSACTION;");
 
-            const listOfExpired = ((await connectionLS.query("SELECT character_id, amount, refund FROM fiskpay_temporary WHERE  refund < ? AND server_id = ?", [Math.floor(Date.now() / 1000), id]))[0]);
+            const listOfExpired = ((await connectionLS.query("SELECT character_id, amount, refund FROM fiskpay_temporary WHERE  refund < ? AND server_id = ?", [(Math.floor(Date.now() / 1000) + 30), id]))[0]);
             const nListOfExpired = listOfExpired.length;
 
             let done = 0;
