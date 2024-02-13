@@ -11,7 +11,8 @@
 		"socket.io-client": "^4.7.2"
 	},
 	"scripts": {
-		"lin": "pkg ./client.js --target node18-linux-x64 --output ./build/client",
-		"win": "pkg ./client.js --target node18-windows-x64 --output ./build/client"
+		"lin": "pkg ./client.js --target node18-linux-x64 --output ./build/clientLinux",
+		"win": "pkg ./client.js --target node18-windows-x64 --output ./build/client",
+		"mac": "pkg ./client.js --target node18-macos-x64 --output ./build/clientMac"
 	}
 }

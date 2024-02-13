@@ -247,9 +247,18 @@ process.emit = suppresser;
 
                     break;
                 }
+                case "isOffline": {
+
+                    if (typeof data.character == "undefined")
+                        requestCB({ "fail": "character undefined" });
+                    else
+                        requestCB(await serverConnector.CHECK_IF_CHARACTER_OFFLINE(requestObject.id, data.character));
+
+                    break;
+                }
                 case "doWithdraw": {
 
-                    requestCB(await serverConnector.CREATE_REFUND(data.address, data.amount, data.server, data.character, data.refund));
+                    requestCB(await serverConnector.CREATE_REFUND(data.address, data.amount, requestObject.id, data.character, data.refund));
 
                     break;
                 }

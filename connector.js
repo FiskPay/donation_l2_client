@@ -511,7 +511,6 @@ class Connector extends EventEmitter {
         }
         finally {
 
-
             connection.release();
             return result;
         }
@@ -561,6 +560,31 @@ class Connector extends EventEmitter {
 
             connectionLS.release();
             connectionGS.release();
+            return result;
+        }
+    }
+
+    CHECK_IF_CHARACTER_OFFLINE = async (id, character) => {//P
+
+        const connection = await this.#serverConnections[id].getConnection();
+        const cchnm = this.#serverTables[id].characters.characterName;
+
+        let result = false;
+        let temporary;
+
+        try {
+
+            temporary = (await connection.query("SELECT online FROM characters WHERE  " + cchnm + " = ? LIMIT 1;", [character]))[0][0];
+            result = { "data": (String(temporary.online) !== "1") };
+        }
+        catch (error) {
+
+            result = { "fail": "CHECK_IF_CHARACTER_ONLINE SQL error" };
+            this.emit("error", error);
+        }
+        finally {
+
+            connection.release();
             return result;
         }
     }
