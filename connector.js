@@ -554,9 +554,7 @@ class Connector extends EventEmitter {
 
             temporary = (await connectionGS.query("SELECT SUM(" + iitam + ") AS balance FROM items WHERE  " + iitmtyid + " = ?;", [this.#serverReward[id]]))[0][0];
             temporary = String((temporary.balance != null) ? (temporary.balance) : ("0"));
-
-            temporary = (await connectionLS.query("UPDATE gameservers SET balance = ? WHERE " + srvid + " = ?;", [temporary, id]))[0];
-            result = (temporary.changedRows == 1);
+            result = ((await connectionLS.query("UPDATE gameservers SET balance = ? WHERE " + srvid + " = ?;", [temporary, id]))[0].changedRows == 1);
         }
         catch (error) {
 
@@ -565,7 +563,7 @@ class Connector extends EventEmitter {
         }
         finally {
 
-            if (result == true) {
+            if (result === true) {
 
                 await connectionLS.query("COMMIT;");
                 await connectionGS.query("COMMIT;");
@@ -592,8 +590,8 @@ class Connector extends EventEmitter {
 
         try {
 
-            temporary = (await connection.query("SELECT online FROM characters WHERE  " + cchnm + " = ? LIMIT 1;", [character]))[0][0];
-            result = { "data": (String(temporary.online) !== "1") };
+            temporary = (await connection.query("SELECT online FROM characters WHERE  " + cchnm + " = ? LIMIT 1;", [character]))[0];
+            result = { "data": (temporary.length == 1 && String(temporary[0].online) != "1") };
         }
         catch (error) {
 
@@ -663,7 +661,7 @@ class Connector extends EventEmitter {
         }
         finally {
 
-            if (result == true) {
+            if (result === true) {
 
                 await connectionLS.query("COMMIT;");
                 await connectionGS.query("COMMIT;");
@@ -693,7 +691,7 @@ class Connector extends EventEmitter {
         const iitmtyid = this.#serverTables[id].items.itemTypeId;
         const iitam = this.#serverTables[id].items.itemAmount;
 
-        let result = { "data": false };
+        let result;
         let temporary;
 
         try {
@@ -703,48 +701,67 @@ class Connector extends EventEmitter {
             await connectionLS.query("START TRANSACTION;");
             await connectionGS.query("START TRANSACTION;");
 
-            temporary = (await connectionGS.query("SELECT " + cchid + ", " + cusrnm + " FROM characters WHERE  " + cchnm + " = ? LIMIT 1;", [character]))[0][0];
+            temporary = (await connectionGS.query("SELECT " + cchid + ", " + cusrnm + " FROM characters WHERE  " + cchnm + " = ? LIMIT 1;", [character]))[0];
 
-            const charID = temporary[cchid];
-            const charLogin = temporary[cusrnm];
+            if (temporary.length != 1)
+                result = { "fail": "Character " + character + " data not found" };
+            else {
 
-            temporary = (await connectionLS.query("SELECT wallet_address FROM accounts WHERE " + ausrnm + " = ? LIMIT 1;", [charLogin]))[0][0];
+                temporary = temporary[0];
 
-            if (temporary.wallet_address === address) {
+                const charID = temporary[cchid];
+                const charLogin = temporary[cusrnm];
 
-                temporary = (await connectionGS.query("SELECT SUM(" + iitam + ") AS balance FROM items WHERE " + iitmtyid + " = ? AND " + ichid + " = ? AND loc = 'inventory';", [this.#serverReward[id], charID]))[0][0];
+                temporary = (await connectionLS.query("SELECT wallet_address FROM accounts WHERE " + ausrnm + " = ? LIMIT 1;", [charLogin]))[0];
 
-                const charBalance = Number((temporary.balance != null) ? (temporary.balance) : (0));
+                if (temporary.length != 1)
+                    result = { "fail": "Character " + character + " login data not found" };
+                else {
 
-                if (charBalance >= amount) {
+                    temporary = temporary[0];
 
-                    let remainAmount = amount;
-                    let index = 0;
+                    if (temporary.wallet_address != address)
+                        result = { "fail": "Wallet validation failed" };
+                    else {
 
-                    temporary = (await connectionGS.query("SELECT " + iitam + ", " + iid + " FROM items WHERE  " + iitmtyid + " = ? AND " + ichid + " = ? AND loc = 'inventory';", [this.#serverReward[id], charID]))[0];
+                        temporary = (await connectionGS.query("SELECT SUM(" + iitam + ") AS balance FROM items WHERE " + iitmtyid + " = ? AND " + ichid + " = ? AND loc = 'inventory';", [this.#serverReward[id], charID]))[0][0];
 
-                    while (remainAmount > 0) {
+                        const charBalance = Number((temporary.balance != null) ? (temporary.balance) : (0));
 
-                        const rowItemAmount = temporary[index][iitam];
-                        const rowItemID = temporary[index][iid];
+                        if (charBalance < amount)
+                            result = { "fail": "Insufficient inventory balance" };
+                        else {
 
-                        if (rowItemAmount == remainAmount && (await connectionGS.query("DELETE FROM items WHERE " + iid + " = ? LIMIT 1;", [rowItemID]))[0].affectedRows == 1)
-                            remainAmount = 0;
-                        else if (rowItemAmount > remainAmount && (await connectionGS.query("UPDATE items SET " + iitam + " = " + iitam + " - ? WHERE " + iid + " = ? LIMIT 1;", [remainAmount, rowItemID]))[0].changedRows == 1)
-                            remainAmount = 0;
-                        else if ((await connectionGS.query("DELETE FROM items WHERE " + iid + " = ? LIMIT 1;", [rowItemID]))[0].affectedRows == 1)
-                            remainAmount = remainAmount - rowItemAmount;
-                        else
-                            break;
+                            let remainAmount = amount;
+                            let index = 0;
 
-                        index++;
+                            temporary = (await connectionGS.query("SELECT " + iitam + ", " + iid + " FROM items WHERE  " + iitmtyid + " = ? AND " + ichid + " = ? AND loc = 'inventory';", [this.#serverReward[id], charID]))[0];
+
+                            while (remainAmount > 0) {
+
+                                const rowItemAmount = temporary[index][iitam];
+                                const rowItemID = temporary[index][iid];
+
+                                if (rowItemAmount == remainAmount && (await connectionGS.query("DELETE FROM items WHERE " + iid + " = ? LIMIT 1;", [rowItemID]))[0].affectedRows == 1)
+                                    remainAmount = 0;
+                                else if (rowItemAmount > remainAmount && (await connectionGS.query("UPDATE items SET " + iitam + " = " + iitam + " - ? WHERE " + iid + " = ? LIMIT 1;", [remainAmount, rowItemID]))[0].changedRows == 1)
+                                    remainAmount = 0;
+                                else if ((await connectionGS.query("DELETE FROM items WHERE " + iid + " = ? LIMIT 1;", [rowItemID]))[0].affectedRows == 1)
+                                    remainAmount = remainAmount - rowItemAmount;
+                                else
+                                    break;
+
+                                index++;
+                            }
+
+                            if (remainAmount > 0)
+                                result = { "fail": "Token removal failed" };
+                            else
+                                result = { "data": ((await connectionLS.query("INSERT INTO fiskpay_temporary (server_id, character_id, amount, refund) VALUES (?, ?, ?, ?);", [id, charID, amount, refund]))[0].affectedRows == 1) };
+                        }
                     }
-
-                    if (remainAmount == 0 && (await connectionLS.query("INSERT INTO fiskpay_temporary (server_id, character_id, amount, refund) VALUES (?, ?, ?, ?);", [id, charID, amount, refund]))[0].affectedRows == 1)
-                        result = { "data": true };
                 }
             }
-
         }
         catch (error) {
 
@@ -801,7 +818,7 @@ class Connector extends EventEmitter {
         }
         finally {
 
-            if (result == true) {
+            if (result === true) {
 
                 await connectionLS.query("COMMIT;");
                 await connectionGS.query("COMMIT;");
