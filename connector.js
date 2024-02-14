@@ -402,14 +402,14 @@ class Connector extends EventEmitter {
                 temporary = temporary[0];
 
                 if (temporary.wallet_address != "not linked")
-                    result = { "fail": "Account already linked to an Ethereum address" };
+                    result = { "fail": "Account " + username + " already linked to an Ethereum address" };
                 else if (!validatePassword(password, temporary[psw]))
                     result = { "fail": "Username - password mismatch" };
                 else
                     result = { "data": ((await connection.query("UPDATE accounts SET wallet_address = ? WHERE " + accnm + " = ? AND wallet_address = 'not linked' AND " + psw + " = ?;", [ethAddress, username, temporary[psw]]))[0].changedRows == 1) };
             }
             else if (temporary.length == 0)
-                result = { "fail": "Account does not exist" };
+                result = { "fail": "Account " + username + " does not exist" };
             else
                 result = { "fail": "Multiple instances of account " + username };
         }
@@ -450,17 +450,15 @@ class Connector extends EventEmitter {
 
                 temporary = temporary[0];
 
-                if (typeof temporary.wallet_address == "undefined")
-                    result = { "fail": "Account does not exist" };
                 if (temporary.wallet_address != ethAddress)
-                    result = { "fail": "Account not linked to your Ethereum address" };
+                    result = { "fail": "Account " + username + " not linked to your Ethereum address" };
                 else if (!validatePassword(password, temporary[psw]))
                     result = { "fail": "Username - password mismatch" };
                 else
                     result = { "data": ((await connection.query("UPDATE accounts SET wallet_address = 'not linked' WHERE " + accnm + " = ? AND wallet_address = ? AND " + psw + " = ?;", [username, ethAddress, temporary[psw]]))[0].changedRows == 1) };
             }
             else if (temporary.length == 0)
-                result = { "fail": "Account does not exist" };
+                result = { "fail": "Account " + username + " does not exist" };
             else
                 result = { "fail": "Multiple instances of account " + username };
         }
