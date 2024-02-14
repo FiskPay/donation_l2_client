@@ -197,6 +197,30 @@ process.emit = suppresser;
 
                     break;
                 }
+                case "getChars": {
+
+                    if (typeof data.username == "undefined")
+                        requestCB({ "fail": "username undefined" });
+                    else
+                        requestCB(await serverConnector.GET_CHARACTERS(requestObject.id, data.username));
+
+                    break;
+                }
+                case "getCharBal": {
+
+                    if (typeof data.character == "undefined")
+                        requestCB({ "fail": "character undefined" });
+                    else
+                        requestCB(await serverConnector.GET_CHARACTER_BALANCE(requestObject.id, data.character));
+
+                    break;
+                }
+                case "getClientBal": {
+
+                    requestCB(await serverConnector.GET_TOTAL_CLIENT_BALANCE());
+
+                    break;
+                }
                 case "addAcc": {
 
                     if (typeof data.username == "undefined")
@@ -220,30 +244,6 @@ process.emit = suppresser;
                         requestCB({ "fail": "walletAddress undefined" });
                     else
                         requestCB(await serverConnector.REMOVE_ACCOUNT(data.username, data.password, data.walletAddress));
-
-                    break;
-                }
-                case "getChars": {
-
-                    if (typeof data.username == "undefined")
-                        requestCB({ "fail": "username undefined" });
-                    else
-                        requestCB(await serverConnector.GET_CHARACTERS(requestObject.id, data.username));
-
-                    break;
-                }
-                case "getCharBal": {
-
-                    if (typeof data.character == "undefined")
-                        requestCB({ "fail": "character undefined" });
-                    else
-                        requestCB(await serverConnector.GET_CHARACTER_BALANCE(requestObject.id, data.character));
-
-                    break;
-                }
-                case "getClientBal": {
-
-                    requestCB(await serverConnector.GET_TOTAL_CLIENT_BALANCE());
 
                     break;
                 }
