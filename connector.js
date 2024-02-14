@@ -395,14 +395,23 @@ class Connector extends EventEmitter {
             await connection.query("SET autocommit = 0;");
             await connection.query("START TRANSACTION;");
 
-            temporary = (await connection.query("SELECT " + psw + ", wallet_address FROM accounts WHERE " + accnm + " = ?", [username]))[0][0];
+            temporary = (await connection.query("SELECT " + psw + ", wallet_address FROM accounts WHERE " + accnm + " = ?", [username]))[0];
 
-            if (temporary.wallet_address !== 'not linked')
-                result = { "fail": "Account already linked to an Ethereum address" };
-            else if (!validatePassword(password, temporary[psw]))
-                result = { "fail": "Username - password mismatch" };
+            if (temporary.length == 1) {
+
+                temporary = temporary[0];
+
+                if (temporary.wallet_address != "not linked")
+                    result = { "fail": "Account already linked to an Ethereum address" };
+                else if (!validatePassword(password, temporary[psw]))
+                    result = { "fail": "Username - password mismatch" };
+                else
+                    result = { "data": ((await connection.query("UPDATE accounts SET wallet_address = ? WHERE " + accnm + " = ? AND wallet_address = 'not linked' AND " + psw + " = ?;", [ethAddress, username, temporary[psw]]))[0].changedRows == 1) };
+            }
+            else if (temporary.length == 0)
+                result = { "fail": "Account does not exist" };
             else
-                result = { "data": ((await connection.query("UPDATE accounts SET wallet_address = ? WHERE " + accnm + " = ? AND wallet_address = 'not linked' AND " + psw + " = ?;", [ethAddress, username, temporary[psw]]))[0].changedRows == 1) };
+                result = { "fail": "Multiple instances of account " + username };
         }
         catch (error) {
 
@@ -435,14 +444,25 @@ class Connector extends EventEmitter {
             await connection.query("SET autocommit = 0;");
             await connection.query("START TRANSACTION;");
 
-            temporary = (await connection.query("SELECT " + psw + ", wallet_address FROM accounts WHERE " + accnm + " = ?", [username]))[0][0];
+            temporary = (await connection.query("SELECT " + psw + ", wallet_address FROM accounts WHERE " + accnm + " = ?", [username]))[0];
 
-            if (temporary.wallet_address !== ethAddress)
-                result = { "fail": "Account not linked to your Ethereum address" };
-            else if (!validatePassword(password, temporary[psw]))
-                result = { "fail": "Username - password mismatch" };
+            if (temporary.length == 1) {
+
+                temporary = temporary[0];
+
+                if (typeof temporary.wallet_address == "undefined")
+                    result = { "fail": "Account does not exist" };
+                if (temporary.wallet_address != ethAddress)
+                    result = { "fail": "Account not linked to your Ethereum address" };
+                else if (!validatePassword(password, temporary[psw]))
+                    result = { "fail": "Username - password mismatch" };
+                else
+                    result = { "data": ((await connection.query("UPDATE accounts SET wallet_address = 'not linked' WHERE " + accnm + " = ? AND wallet_address = ? AND " + psw + " = ?;", [username, ethAddress, temporary[psw]]))[0].changedRows == 1) };
+            }
+            else if (temporary.length == 0)
+                result = { "fail": "Account does not exist" };
             else
-                result = { "data": ((await connection.query("UPDATE accounts SET wallet_address = 'not linked' WHERE " + accnm + " = ? AND wallet_address = ? AND " + psw + " = ?;", [username, ethAddress, temporary[psw]]))[0].changedRows == 1) };
+                result = { "fail": "Multiple instances of account " + username };
         }
         catch (error) {
 
