@@ -36,7 +36,7 @@ process.emit = suppresser;
     console.log(dateTime() + " |");
     console.log(dateTime() + " | Fetching remote IP address...");
 
-    const remoteIPAddress = (await (await fetch("https://api.ipify.org/?format=json")).json()).ip;
+    const remoteIPAddress = (await (await fetch("https://api.fiskpay.com/ip/")).json()).ip;
 
     console.log(dateTime() + " | Remote IP address: " + remoteIPAddress);
 
@@ -54,13 +54,14 @@ process.emit = suppresser;
     let updateServerTimeout;
 
     const serverConnector = new Connector(connectorConfig, remoteIPAddress);
-    const socketConnector = io("wss://ds.fiskpay.com:42099", { "autoConnect": false, "reconnection": true, "reconnectionDelay": 5000, "reconnectionAttempts": Infinity }); // "wss://ds.fiskpay.com:42099" "ws://127.0.0.1:42099"
+    const socketConnector = io("wss://ds.fiskpay.com:42099", { "autoConnect": false, "reconnection": true, "reconnectionDelay": 5000, "reconnectionAttempts": Infinity });
+    //const socketConnector = io("ws://127.0.0.1:42099", { "autoConnect": false, "reconnection": true, "reconnectionDelay": 5000, "reconnectionAttempts": Infinity });
 
     serverConnector.on("updateServer", async (id, connected) => {
 
         if (connected) {
 
-            if (serversStatus[id].v === undefined)
+            if (typeof serversStatus[id].v == "undefined")
                 serversStatus[id].v = await serverConnector.VALIDATE_SERVER(id);
 
             if (serversStatus[id].v === true) {
@@ -94,7 +95,7 @@ process.emit = suppresser;
 
             if (serversStatus[id].c !== false) {
 
-                if (serversStatus[id].i !== undefined) {
+                if (typeof serversStatus[id].i != "undefined") {
 
                     clearInterval(serversStatus[id].i);
                     delete serversStatus[id].i;

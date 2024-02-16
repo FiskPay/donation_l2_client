@@ -712,56 +712,62 @@ class Connector extends EventEmitter {
                 const charID = temporary[cchid];
                 const charLogin = temporary[cusrnm];
 
-                temporary = (await connectionLS.query("SELECT wallet_address FROM accounts WHERE " + ausrnm + " = ? LIMIT 1;", [charLogin]))[0];
-
-                if (temporary.length != 1)
-                    result = { "fail": "Character " + character + " login data not found" };
+                if ((await connectionLS.query("SELECT server_id, character_id, amount, refund FROM fiskpay_temporary WHERE server_id = ? AND character_id = ? AND amount = ? AND refund = ?;", [id, charID, amount, refund]))[0].length != 0)
+                    result = { "fail": "Trying to exploit? Help us grow, report your findings" };
                 else {
 
-                    temporary = temporary[0];
+                    temporary = (await connectionLS.query("SELECT wallet_address FROM accounts WHERE " + ausrnm + " = ? LIMIT 1;", [charLogin]))[0];
 
-                    if (temporary.wallet_address != address)
-                        result = { "fail": "Wallet validation failed" };
+                    if (temporary.length != 1)
+                        result = { "fail": "Character " + character + " login data not found" };
                     else {
 
-                        temporary = (await connectionGS.query("SELECT SUM(" + iitam + ") AS balance FROM items WHERE " + iitmtyid + " = ? AND " + ichid + " = ? AND loc = 'inventory';", [this.#serverReward[id], charID]))[0][0];
+                        temporary = temporary[0];
 
-                        const charBalance = Number((temporary.balance != null) ? (temporary.balance) : (0));
-
-                        if (charBalance < amount)
-                            result = { "fail": "Insufficient inventory balance" };
+                        if (temporary.wallet_address != address)
+                            result = { "fail": "Wallet validation failed" };
                         else {
 
-                            let remainAmount = amount;
-                            let index = 0;
+                            temporary = (await connectionGS.query("SELECT SUM(" + iitam + ") AS balance FROM items WHERE " + iitmtyid + " = ? AND " + ichid + " = ? AND loc = 'inventory';", [this.#serverReward[id], charID]))[0][0];
 
-                            temporary = (await connectionGS.query("SELECT " + iitam + ", " + iid + " FROM items WHERE  " + iitmtyid + " = ? AND " + ichid + " = ? AND loc = 'inventory';", [this.#serverReward[id], charID]))[0];
+                            const charBalance = Number((temporary.balance != null) ? (temporary.balance) : (0));
 
-                            while (remainAmount > 0) {
+                            if (charBalance < amount)
+                                result = { "fail": "Insufficient inventory balance" };
+                            else {
 
-                                const rowItemAmount = temporary[index][iitam];
-                                const rowItemID = temporary[index][iid];
+                                let remainAmount = amount;
+                                let index = 0;
 
-                                if (rowItemAmount == remainAmount && (await connectionGS.query("DELETE FROM items WHERE " + iid + " = ? LIMIT 1;", [rowItemID]))[0].affectedRows == 1)
-                                    remainAmount = 0;
-                                else if (rowItemAmount > remainAmount && (await connectionGS.query("UPDATE items SET " + iitam + " = " + iitam + " - ? WHERE " + iid + " = ? LIMIT 1;", [remainAmount, rowItemID]))[0].changedRows == 1)
-                                    remainAmount = 0;
-                                else if ((await connectionGS.query("DELETE FROM items WHERE " + iid + " = ? LIMIT 1;", [rowItemID]))[0].affectedRows == 1)
-                                    remainAmount = remainAmount - rowItemAmount;
+                                temporary = (await connectionGS.query("SELECT " + iitam + ", " + iid + " FROM items WHERE  " + iitmtyid + " = ? AND " + ichid + " = ? AND loc = 'inventory';", [this.#serverReward[id], charID]))[0];
+
+                                while (remainAmount > 0) {
+
+                                    const rowItemAmount = temporary[index][iitam];
+                                    const rowItemID = temporary[index][iid];
+
+                                    if (rowItemAmount == remainAmount && (await connectionGS.query("DELETE FROM items WHERE " + iid + " = ? LIMIT 1;", [rowItemID]))[0].affectedRows == 1)
+                                        remainAmount = 0;
+                                    else if (rowItemAmount > remainAmount && (await connectionGS.query("UPDATE items SET " + iitam + " = " + iitam + " - ? WHERE " + iid + " = ? LIMIT 1;", [remainAmount, rowItemID]))[0].changedRows == 1)
+                                        remainAmount = 0;
+                                    else if ((await connectionGS.query("DELETE FROM items WHERE " + iid + " = ? LIMIT 1;", [rowItemID]))[0].affectedRows == 1)
+                                        remainAmount = remainAmount - rowItemAmount;
+                                    else
+                                        break;
+
+                                    index++;
+                                }
+
+                                if (remainAmount > 0)
+                                    result = { "fail": "Token removal failed" };
                                 else
-                                    break;
-
-                                index++;
+                                    result = { "data": ((await connectionLS.query("INSERT INTO fiskpay_temporary (server_id, character_id, amount, refund) VALUES (?, ?, ?, ?);", [id, charID, amount, refund]))[0].affectedRows == 1) };
                             }
-
-                            if (remainAmount > 0)
-                                result = { "fail": "Token removal failed" };
-                            else
-                                result = { "data": ((await connectionLS.query("INSERT INTO fiskpay_temporary (server_id, character_id, amount, refund) VALUES (?, ?, ?, ?);", [id, charID, amount, refund]))[0].affectedRows == 1) };
                         }
                     }
                 }
             }
+
         }
         catch (error) {
 
