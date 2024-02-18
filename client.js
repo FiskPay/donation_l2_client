@@ -27,9 +27,9 @@ process.emit = suppresser;
         return datetime;
     }
 
-    console.log(dateTime() + " | ------------------------------------------------------------------------------------");
-    console.log(dateTime() + " |                   FiskPay blockchain support for Lineage2 servers                   ");
-    console.log(dateTime() + " | ------------------------------------------------------------------------------------");
+    console.log(dateTime() + " | ------------------------------------------------------------------------------------ ");
+    console.log(dateTime() + " |                      FiskPay blockchain support for L2J servers                      ");
+    console.log(dateTime() + " | ------------------------------------------------------------------------------------ ");
 
     const tokenSymbol = "LINK";
 

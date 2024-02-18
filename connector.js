@@ -189,10 +189,12 @@ class Connector extends EventEmitter {
             "user": this.#config[id].dbUsername,
             "password": this.#config[id].dbPassword,
             "waitForConnections": true,
-            "connectionLimit": 25,
-            "maxIdle": 6,
+            "connectionLimit": ((id == "ls") ? (12+1): (3+1)),
+            "maxIdle": ((id == "ls") ? (4): (1)),
             "idleTimeout": 60000,
-            "queueLimit": 0
+            "queueLimit": 0,
+            "enableKeepAlive": true,
+            "keepAliveInitialDelay": 0
         }
 
         try {
