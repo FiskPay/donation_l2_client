@@ -31,7 +31,7 @@ process.emit = suppresser;
     console.log(dateTime() + " |                      FiskPay blockchain support for L2J servers                      ");
     console.log(dateTime() + " | ------------------------------------------------------------------------------------ ");
 
-    const tokenSymbol = "LINK";
+    const tokenSymbol = "USDT";
 
     console.log(dateTime() + " |");
     console.log(dateTime() + " | Fetching remote IP address...");
