@@ -189,8 +189,8 @@ class Connector extends EventEmitter {
             "user": this.#config[id].dbUsername,
             "password": this.#config[id].dbPassword,
             "waitForConnections": true,
-            "connectionLimit": ((id == "ls") ? (12+1): (3+1)),
-            "maxIdle": ((id == "ls") ? (4): (1)),
+            "connectionLimit": ((id == "ls") ? (12 + 1) : (3 + 1)),
+            "maxIdle": ((id == "ls") ? (4) : (1)),
             "idleTimeout": 60000,
             "queueLimit": 0,
             "enableKeepAlive": true,
@@ -245,7 +245,13 @@ class Connector extends EventEmitter {
 
                 const lsConfig = this.#config["ls"].dbTableColumns;
 
+                let addWalletAddressColumn = true;
+                let addBalanceColumn = true;
+
                 accountsTable.forEach((column) => {
+
+                    if (column.Field == "wallet_address")
+                        addWalletAddressColumn = false;
 
                     if (column.Field == lsConfig.accounts.accountUsername || column.Field == lsConfig.accounts.accountPassword)
                         checks++;
@@ -253,14 +259,23 @@ class Connector extends EventEmitter {
 
                 gameserversTable.forEach((column) => {
 
+                    if (column.Field == "balance")
+                        addBalanceColumn = false;
+
                     if (column.Field == lsConfig.gameservers.gameserverId)
                         checks++
                 });
 
                 if (checks == 3) {
 
-                    await connection.query("ALTER TABLE accounts ADD COLUMN IF NOT EXISTS wallet_address VARCHAR(42) NOT NULL DEFAULT 'not linked';");
-                    await connection.query("ALTER TABLE gameservers ADD COLUMN IF NOT EXISTS balance INT(10) UNSIGNED NOT NULL DEFAULT '0';");
+                    if (addWalletAddressColumn)
+                        await connection.query("ALTER TABLE accounts ADD COLUMN wallet_address VARCHAR(42) NOT NULL DEFAULT 'not linked';");
+
+                    if (addBalanceColumn)
+                        await connection.query("ALTER TABLE gameservers ADD COLUMN balance INT(10) UNSIGNED NOT NULL DEFAULT '0';");
+
+                    //await connection.query("ALTER TABLE accounts ADD COLUMN IF NOT EXISTS wallet_address VARCHAR(42) NOT NULL DEFAULT 'not linked';");
+                    //await connection.query("ALTER TABLE gameservers ADD COLUMN IF NOT EXISTS balance INT(10) UNSIGNED NOT NULL DEFAULT '0';");
                     await connection.query("CREATE TABLE IF NOT EXISTS fiskpay_deposits (server_id INT(11) NOT NULL, transaction_hash VARCHAR(66) NOT NULL, character_name VARCHAR(35) NOT NULL, wallet_address VARCHAR(42) NOT NULL, amount INT(10) UNSIGNED NOT NULL, PRIMARY KEY(transaction_hash)) ENGINE = InnoDB DEFAULT CHARSET = utf8;");
                     await connection.query("CREATE TABLE IF NOT EXISTS fiskpay_withdrawals (server_id INT(11) NOT NULL, transaction_hash VARCHAR(66) NOT NULL, character_name VARCHAR(35) NOT NULL, wallet_address VARCHAR(42) NOT NULL, amount INT(10) UNSIGNED NOT NULL, PRIMARY KEY(transaction_hash)) ENGINE = InnoDB DEFAULT CHARSET = utf8;");
                     await connection.query("CREATE TABLE IF NOT EXISTS fiskpay_temporary (server_id INT(11) NOT NULL, character_id INT(10) NOT NULL, amount INT(10) UNSIGNED NOT NULL, refund INT(10) UNSIGNED NOT NULL, PRIMARY KEY(server_id, character_id, refund)) ENGINE = InnoDB DEFAULT CHARSET = utf8;");
