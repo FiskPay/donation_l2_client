@@ -756,6 +756,36 @@ class Connector extends EventEmitter {
             const newGroup2Value = Number(groups.group2);
             const newGroup3Value = Number(groups.group3);
 
+            const currentGroup0Value = this.#serverData[id].reward.group0;
+            const currentGroup1Value = this.#serverData[id].reward.group1;
+            const currentGroup2Value = this.#serverData[id].reward.group2;
+            const currentGroup3Value = this.#serverData[id].reward.group3;
+
+            let changeValue = 0;
+            let newNextId = this.#serverData[id].reward.nextId;
+            let newNowGroup = this.#serverData[id].reward.nowGroup;
+
+            if (newNowGroup == "group0" && (newGroup0Value > currentGroup0Value || newGroup3Value > currentGroup3Value)) {
+
+                newNextId = 1207959552;
+                newNowGroup = "group2";
+            }
+            else if (newNowGroup == "group1" && (newGroup1Value > currentGroup1Value || newGroup0Value > currentGroup0Value)) {
+
+                newNextId = 1677721600;
+                newNowGroup = "group3";
+            }
+            else if (newNowGroup == "group2" && (newGroup2Value > currentGroup2Value || newGroup1Value > currentGroup1Value)) {
+
+                newNextId = 268435456;
+                newNowGroup = "group0";
+            }
+            else if (newNowGroup == "group3" && (newGroup3Value > currentGroup3Value || newGroup2Value > currentGroup2Value)) {
+
+                newNextId = 738197504;
+                newNowGroup = "group1";
+            }
+
             temporary = (await connectionGS.query(`SELECT ${lCharactersCharacterId} FROM characters WHERE ${lCharactersCharacterName} = ? LIMIT 1;`, [character]))[0][0];
 
             const charId = temporary[lCharactersCharacterId];
@@ -771,44 +801,11 @@ class Connector extends EventEmitter {
                     if ((await connectionLS.query(`INSERT INTO fiskpay_deposits (server_id, transaction_hash, character_name, wallet_address, amount) VALUES (?, ?, ?, ?, ?);`, [id, txHash, character, from, amount]))[0].affectedRows == 1) {
 
                         result = true;
-
-                        this.#serverData[id].reward.group0 = newGroup0Value;
-                        this.#serverData[id].reward.group1 = newGroup1Value;
-                        this.#serverData[id].reward.group2 = newGroup2Value;
-                        this.#serverData[id].reward.group3 = newGroup3Value;
                     }
                 }
+
             }
             else {
-
-                const currentGroup0Value = this.#serverData[id].reward.group0;
-                const currentGroup1Value = this.#serverData[id].reward.group1;
-                const currentGroup2Value = this.#serverData[id].reward.group2;
-                const currentGroup3Value = this.#serverData[id].reward.group3;
-
-                let newNextId = this.#serverData[id].reward.nextId;
-                let newNowGroup = this.#serverData[id].reward.nowGroup;
-
-                if (newNowGroup == "group0" && (newGroup0Value > currentGroup0Value || newGroup3Value > currentGroup3Value)) {
-
-                    newNextId = 1207959552;
-                    newNowGroup = "group2";
-                }
-                else if (newNowGroup == "group1" && (newGroup1Value > currentGroup1Value || newGroup0Value > currentGroup0Value)) {
-
-                    newNextId = 1677721600;
-                    newNowGroup = "group3";
-                }
-                else if (newNowGroup == "group2" && (newGroup2Value > currentGroup2Value || newGroup1Value > currentGroup1Value)) {
-
-                    newNextId = 268435456;
-                    newNowGroup = "group0";
-                }
-                else if (newNowGroup == "group3" && (newGroup3Value > currentGroup3Value || newGroup2Value > currentGroup2Value)) {
-
-                    newNextId = 738197504;
-                    newNowGroup = "group1";
-                }
 
                 do {
 
@@ -822,17 +819,20 @@ class Connector extends EventEmitter {
                     if ((await connectionLS.query(`INSERT INTO fiskpay_deposits (server_id, transaction_hash, character_name, wallet_address, amount) VALUES (?, ?, ?, ?, ?);`, [id, txHash, character, from, amount]))[0].affectedRows == 1) {
 
                         result = true;
-
-                        this.#serverData[id].reward.nextId = newNextId;
-                        this.#serverData[id].reward.nowGroup = newNowGroup;
-                        this.#serverData[id].reward.group0 = ((newNowGroup == "group0") ? (newGroup0Value + 1) : (newGroup0Value));
-                        this.#serverData[id].reward.group1 = ((newNowGroup == "group1") ? (newGroup1Value + 1) : (newGroup1Value));
-                        this.#serverData[id].reward.group2 = ((newNowGroup == "group2") ? (newGroup2Value + 1) : (newGroup2Value));
-                        this.#serverData[id].reward.group3 = ((newNowGroup == "group3") ? (newGroup3Value + 1) : (newGroup3Value));
+                        changeValue++;
                     }
                 }
             }
 
+            if (result === true) {
+
+                this.#serverData[id].reward.nextId = newNextId;
+                this.#serverData[id].reward.nowGroup = newNowGroup;
+                this.#serverData[id].reward.group0 = ((newNowGroup == "group0") ? (newGroup0Value + changeValue) : (newGroup0Value));
+                this.#serverData[id].reward.group1 = ((newNowGroup == "group1") ? (newGroup1Value + changeValue) : (newGroup1Value));
+                this.#serverData[id].reward.group2 = ((newNowGroup == "group2") ? (newGroup2Value + changeValue) : (newGroup2Value));
+                this.#serverData[id].reward.group3 = ((newNowGroup == "group3") ? (newGroup3Value + changeValue) : (newGroup3Value));
+            }
         }
         catch (error) {
 
@@ -910,6 +910,36 @@ class Connector extends EventEmitter {
             const newGroup2Value = Number(groups.group2);
             const newGroup3Value = Number(groups.group3);
 
+            const currentGroup0Value = this.#serverData[id].reward.group0;
+            const currentGroup1Value = this.#serverData[id].reward.group1;
+            const currentGroup2Value = this.#serverData[id].reward.group2;
+            const currentGroup3Value = this.#serverData[id].reward.group3;
+
+            let changeValue = 0;
+            let newNextId = this.#serverData[id].reward.nextId;
+            let newNowGroup = this.#serverData[id].reward.nowGroup;
+
+            if (newNowGroup == "group0" && (newGroup0Value > currentGroup0Value || newGroup3Value > currentGroup3Value)) {
+
+                newNextId = 1207959552;
+                newNowGroup = "group2";
+            }
+            else if (newNowGroup == "group1" && (newGroup1Value > currentGroup1Value || newGroup0Value > currentGroup0Value)) {
+
+                newNextId = 1677721600;
+                newNowGroup = "group3";
+            }
+            else if (newNowGroup == "group2" && (newGroup2Value > currentGroup2Value || newGroup1Value > currentGroup1Value)) {
+
+                newNextId = 268435456;
+                newNowGroup = "group0";
+            }
+            else if (newNowGroup == "group3" && (newGroup3Value > currentGroup3Value || newGroup2Value > currentGroup2Value)) {
+
+                newNextId = 738197504;
+                newNowGroup = "group1";
+            }
+
             temporary = (await connectionGS.query(`SELECT ${lCharactersCharacterId}, ${lCharactersAccountUsername} FROM characters WHERE ${lCharactersCharacterName} = ? LIMIT 1;`, [character]))[0];
 
             if (temporary.length != 1)
@@ -953,31 +983,38 @@ class Connector extends EventEmitter {
                                     const rowItemAmount = temporary[index][lItemsItemAmount];
                                     const rowItemId = temporary[index][lItemsItemId];
 
-                                    if (rowItemAmount == remainAmount && (await connectionGS.query(`DELETE FROM items WHERE ${lItemsItemId} = '${rowItemId}' LIMIT 1;`))[0].affectedRows == 1)
+                                    if (rowItemAmount > remainAmount && (await connectionGS.query(`UPDATE items SET ${lItemsItemAmount} = ${lItemsItemAmount} - '${remainAmount}' WHERE ${lItemsItemId} = '${rowItemId}' LIMIT 1;`))[0].changedRows == 1)
                                         remainAmount = 0;
-                                    else if (rowItemAmount > remainAmount && (await connectionGS.query(`UPDATE items SET ${lItemsItemAmount} = ${lItemsItemAmount} - '${remainAmount}' WHERE ${lItemsItemId} = '${rowItemId}' LIMIT 1;`))[0].changedRows == 1)
-                                        remainAmount = 0;
-                                    else if ((await connectionGS.query(`DELETE FROM items WHERE ${lItemsItemId} = '${rowItemId}' LIMIT 1;`))[0].affectedRows == 1)
-                                        remainAmount = remainAmount - rowItemAmount;
+                                    else if (rowItemAmount <= remainAmount && (await connectionGS.query(`DELETE FROM items WHERE ${lItemsItemId} = '${rowItemId}' LIMIT 1;`))[0].affectedRows == 1) {
+
+                                        changeValue--;
+
+                                        if (rowItemAmount == remainAmount)
+                                            remainAmount = 0;
+                                        else
+                                            remainAmount = remainAmount - rowItemAmount;
+                                    }
                                     else
                                         break;
 
                                     index++;
                                 }
 
-                                if (remainAmount > 0)
+                                if (remainAmount != 0)
                                     result = { "fail": "Token removal failed" };
-                                else if ((await connectionLS.query(`INSERT INTO fiskpay_temporary (server_id, character_id, amount, refund) VALUES (?, ${charId}, ?, ?);`, [id, amount, refund]))[0].affectedRows == 1) {
+                                else if ((await connectionLS.query(`INSERT INTO fiskpay_temporary (server_id, character_id, amount, refund) VALUES (?, ${charId}, ?, ?);`, [id, amount, refund]))[0].affectedRows != 1)
+                                    result = { "data": false };
+                                else {
 
                                     result = { "data": true };
 
-                                    this.#serverData[id].reward.group0 = newGroup0Value;
-                                    this.#serverData[id].reward.group1 = newGroup1Value;
-                                    this.#serverData[id].reward.group2 = newGroup2Value;
-                                    this.#serverData[id].reward.group3 = newGroup3Value;
+                                    this.#serverData[id].reward.nextId = newNextId;
+                                    this.#serverData[id].reward.nowGroup = newNowGroup;
+                                    this.#serverData[id].reward.group0 = ((newNowGroup == "group0") ? (newGroup0Value + changeValue) : (newGroup0Value));
+                                    this.#serverData[id].reward.group1 = ((newNowGroup == "group1") ? (newGroup1Value + changeValue) : (newGroup1Value));
+                                    this.#serverData[id].reward.group2 = ((newNowGroup == "group2") ? (newGroup2Value + changeValue) : (newGroup2Value));
+                                    this.#serverData[id].reward.group3 = ((newNowGroup == "group3") ? (newGroup3Value + changeValue) : (newGroup3Value));
                                 }
-                                else
-                                    result = { "data": false };
                             }
                         }
                     }
@@ -1113,6 +1150,7 @@ class Connector extends EventEmitter {
             const currentGroup2Value = this.#serverData[id].reward.group2;
             const currentGroup3Value = this.#serverData[id].reward.group3;
 
+            let changeValue = 0;
             let newNextId = this.#serverData[id].reward.nextId;
             let newNowGroup = this.#serverData[id].reward.nowGroup;
 
@@ -1139,8 +1177,7 @@ class Connector extends EventEmitter {
 
             const listOfExpired = (await connectionLS.query(`SELECT character_id, amount, refund FROM fiskpay_temporary WHERE  refund < ${(Math.floor(Date.now() / 1000) + 30)} AND server_id = ?`, [id]))[0];
 
-            let done = 0;
-            let addedValue = 0;
+            let unprocessed = listOfExpired.length;
 
             for (const row of listOfExpired) {
 
@@ -1156,7 +1193,7 @@ class Connector extends EventEmitter {
 
                     if ((await connectionGS.query(`UPDATE items SET ${lItemsItemAmount} = ${lItemsItemAmount} + '${amount}' WHERE ${lItemsItemId} = '${itemId}' LIMIT 1;`))[0].changedRows == 1)
                         if ((await connectionLS.query(`DELETE FROM fiskpay_temporary WHERE server_id = ? AND character_id = '${charId}' AND amount = '${amount}' AND refund = '${refund}' LIMIT 1;`, [id]))[0].affectedRows == 1)
-                            done++;
+                            unprocessed--;
                 }
                 else {
 
@@ -1168,26 +1205,26 @@ class Connector extends EventEmitter {
                     } while (temporary.instances > 0)
 
                     if ((await connectionGS.query(`INSERT INTO items (${lItemsCharacterId}, ${lItemsItemId}, ${lItemsItemTypeId}, ${lItemsItemAmount}, loc) VALUES (${charId}, ${newNextId} - 1, ${lRewardTypeId}, ${amount}, 'inventory');`))[0].affectedRows == 1) {
-                        
+
                         if ((await connectionLS.query(`DELETE FROM fiskpay_temporary WHERE server_id = ? AND character_id = '${charId}' AND amount = '${amount}' AND refund = '${refund}' LIMIT 1;`, [id]))[0].affectedRows == 1) {
 
-                            done++;
-                            addedValue++;
+                            unprocessed--;
+                            changeValue++;
                         }
                     }
                 }
             }
 
-            if (done == listOfExpired.length) {
+            if (unprocessed == 0) {
 
                 result = true;
 
                 this.#serverData[id].reward.nextId = newNextId;
                 this.#serverData[id].reward.nowGroup = newNowGroup;
-                this.#serverData[id].reward.group0 = ((newNowGroup == "group0") ? (newGroup0Value + addedValue) : (newGroup0Value));
-                this.#serverData[id].reward.group1 = ((newNowGroup == "group1") ? (newGroup1Value + addedValue) : (newGroup1Value));
-                this.#serverData[id].reward.group2 = ((newNowGroup == "group2") ? (newGroup2Value + addedValue) : (newGroup2Value));
-                this.#serverData[id].reward.group3 = ((newNowGroup == "group3") ? (newGroup3Value + addedValue) : (newGroup3Value));
+                this.#serverData[id].reward.group0 = ((newNowGroup == "group0") ? (newGroup0Value + changeValue) : (newGroup0Value));
+                this.#serverData[id].reward.group1 = ((newNowGroup == "group1") ? (newGroup1Value + changeValue) : (newGroup1Value));
+                this.#serverData[id].reward.group2 = ((newNowGroup == "group2") ? (newGroup2Value + changeValue) : (newGroup2Value));
+                this.#serverData[id].reward.group3 = ((newNowGroup == "group3") ? (newGroup3Value + changeValue) : (newGroup3Value));
             }
 
         }
