@@ -807,19 +807,31 @@ class Connector extends EventEmitter {
             }
             else {
 
-                do {
+                while ((await connectionGS.query(`SELECT COUNT(${lItemsItemId}) AS instances FROM items WHERE ${lItemsItemId} = '${newNextId}';`))[0][0].instances > 0) {
 
-                    temporary = (await connectionGS.query(`SELECT COUNT(${lItemsItemId}) AS instances FROM items WHERE ${lItemsItemId} = '${newNextId}';`))[0][0];
-                    newNextId++;
+                    if (newNextId < 2147483647)
+                        newNextId++;
+                    else {
 
-                } while (temporary.instances > 0)
+                        newNextId = 268435456;
+                        newNowGroup = "group0";
+                    }
+                }
 
-                if ((await connectionGS.query(`INSERT INTO items (${lItemsCharacterId}, ${lItemsItemId}, ${lItemsItemTypeId}, ${lItemsItemAmount}, loc) VALUES (${charId}, ${newNextId} - 1, ${lRewardTypeId}, ?, 'inventory');`, [amount]))[0].affectedRows == 1) {
+                if ((await connectionGS.query(`INSERT INTO items (${lItemsCharacterId}, ${lItemsItemId}, ${lItemsItemTypeId}, ${lItemsItemAmount}, loc) VALUES (${charId}, ${newNextId}, ${lRewardTypeId}, ?, 'inventory');`, [amount]))[0].affectedRows == 1) {
 
                     if ((await connectionLS.query(`INSERT INTO fiskpay_deposits (server_id, transaction_hash, character_name, wallet_address, amount) VALUES (?, ?, ?, ?, ?);`, [id, txHash, character, from, amount]))[0].affectedRows == 1) {
 
                         result = true;
                         changeValue++;
+
+                        if (newNextId < 2147483647)
+                            newNextId++;
+                        else {
+
+                            newNextId = 268435456;
+                            newNowGroup = "group0";
+                        }
                     }
                 }
             }
@@ -1197,19 +1209,31 @@ class Connector extends EventEmitter {
                 }
                 else {
 
-                    do {
+                    while ((await connectionGS.query(`SELECT COUNT(${lItemsItemId}) AS instances FROM items WHERE ${lItemsItemId} = '${newNextId}';`))[0][0].instances > 0) {
 
-                        temporary = (await connectionGS.query(`SELECT COUNT(${lItemsItemId}) AS instances FROM items WHERE ${lItemsItemId} = '${newNextId}';`))[0][0];
-                        newNextId++;
+                        if (newNextId < 2147483647)
+                            newNextId++;
+                        else {
 
-                    } while (temporary.instances > 0)
+                            newNextId = 268435456;
+                            newNowGroup = "group0";
+                        }
+                    }
 
-                    if ((await connectionGS.query(`INSERT INTO items (${lItemsCharacterId}, ${lItemsItemId}, ${lItemsItemTypeId}, ${lItemsItemAmount}, loc) VALUES (${charId}, ${newNextId} - 1, ${lRewardTypeId}, ${amount}, 'inventory');`))[0].affectedRows == 1) {
+                    if ((await connectionGS.query(`INSERT INTO items (${lItemsCharacterId}, ${lItemsItemId}, ${lItemsItemTypeId}, ${lItemsItemAmount}, loc) VALUES (${charId}, ${newNextId}, ${lRewardTypeId}, ${amount}, 'inventory');`))[0].affectedRows == 1) {
 
                         if ((await connectionLS.query(`DELETE FROM fiskpay_temporary WHERE server_id = ? AND character_id = '${charId}' AND amount = '${amount}' AND refund = '${refund}' LIMIT 1;`, [id]))[0].affectedRows == 1) {
 
                             unprocessed--;
                             changeValue++;
+
+                            if (newNextId < 2147483647)
+                                newNextId++;
+                            else {
+
+                                newNextId = 268435456;
+                                newNowGroup = "group0";
+                            }
                         }
                     }
                 }
