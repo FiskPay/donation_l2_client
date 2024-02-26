@@ -617,7 +617,7 @@ class Connector extends EventEmitter {
 
         try {
 
-            temporary = (await connection.query(`SELECT SUM(i.${lItemsItemAmount}) AS balance FROM items AS i, characters AS c WHERE c.${lCharactersCharacterId} = 'i.${lItemsCharacterId}' AND c.${lCharactersCharacterName} = ? AND i.${lItemsItemTypeId} = '${lRewardTypeId}' AND i.loc = 'inventory';`, [charname]))[0][0];
+            temporary = (await connection.query(`SELECT SUM(i.${lItemsItemAmount}) AS balance FROM items AS i, characters AS c WHERE c.${lCharactersCharacterId} = i.${lItemsCharacterId} AND c.${lCharactersCharacterName} = ? AND i.${lItemsItemTypeId} = '${lRewardTypeId}' AND i.loc = 'inventory';`, [charname]))[0][0];
             result = { "data": (String((temporary.balance != null) ? (temporary.balance) : ("0"))) };
         }
         catch (error) {
