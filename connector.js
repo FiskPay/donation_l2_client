@@ -1,4 +1,4 @@
-const mysql = require("mysql2");
+const mysql = require("mysql2/promise");
 const EventEmitter = require("node:events");
 const crypto = require("node:crypto");
 
@@ -166,10 +166,9 @@ class Connector extends EventEmitter {
 
     #config;
     #remoteIPAddress;
-    #serverConnections = class { this = []; }
-    #serverTables = {}
-    #serverReward = {}
-    #serverInterval = {}
+    #connections = class { this = []; }
+    #serverData = {}
+    #rewardObjectId = {}
 
     constructor(config, remoteIPAddress) {
 
@@ -181,57 +180,61 @@ class Connector extends EventEmitter {
 
     CONNECT_SERVER = async (id) => {//C
 
-        const config = {
+        return await new Promise(async (resolve) => {
 
-            "database": this.#config[id].dbName,
-            "host": ((id == "ls" || this.#config[id].dbIPAddress == this.#remoteIPAddress) ? ("127.0.0.1") : (this.#config[id].dbIPAddress)),
-            "port": this.#config[id].dbPort,
-            "user": this.#config[id].dbUsername,
-            "password": this.#config[id].dbPassword,
-            "waitForConnections": true,
-            "connectionLimit": ((id == "ls") ? (12 + 1) : (3 + 1)),
-            "maxIdle": ((id == "ls") ? (4) : (1)),
-            "idleTimeout": 60000,
-            "queueLimit": 0,
-            "enableKeepAlive": true,
-            "keepAliveInitialDelay": 0
-        }
+            try {
 
-        try {
+                this.#connections[id] = mysql.createPool({
 
-            let connection;
+                    "database": this.#config[id].dbName,
+                    "host": ((id == "ls" || this.#config[id].dbIPAddress == this.#remoteIPAddress) ? ("127.0.0.1") : (this.#config[id].dbIPAddress)),
+                    "port": this.#config[id].dbPort,
+                    "user": this.#config[id].dbUsername,
+                    "password": this.#config[id].dbPassword,
+                    "waitForConnections": true,
+                    "connectionLimit": ((id == "ls") ? (12 + 1) : (3 + 1)),
+                    "maxIdle": ((id == "ls") ? (4) : (1)),
+                    "idleTimeout": 60000,
+                    "queueLimit": 0,
+                    "enableKeepAlive": true,
+                    "keepAliveInitialDelay": 0
+                });
 
-            this.#serverConnections[id] = mysql.createPool(config).promise();
+                const connection = await this.#connections[id].getConnection();
+                connection.on("error", () => {
 
-            connection = await this.#serverConnections[id].getConnection();
-            connection.on("error", () => {
+                    clearInterval(this.#serverData[id].interval);
 
-                clearInterval(this.#serverInterval[id]);
+                    this.emit("updateServer", id, false);
+                });
+
+                this.#serverData[id] = { "interval": undefined, "tables": undefined, "reward": undefined }
+                this.#serverData[id].interval = setInterval(() => { connection.query(`SELECT 1;`); }, 45000);
+
+                this.emit("updateServer", id, true);
+            }
+            catch (e) {
+
                 this.emit("updateServer", id, false);
-            });
+            }
+            finally {
 
-            this.#serverInterval[id] = setInterval(() => { connection.query("SELECT 1;"); }, 45000);
-            this.emit("updateServer", id, true);
-        }
-        catch {
-
-            this.emit("updateServer", id, false);
-        }
-
-        return await new Promise((resolve) => setTimeout(() => { resolve(true); }, 500));
+                resolve(true)
+            }
+        });
     }
 
     DISCONNECT_SERVER = async (id) => {//C
 
-        clearInterval(this.#serverInterval[id]);
-        await this.#serverConnections[id].end();
+        clearInterval(this.#serverData[id].interval);
+        await this.#connections[id].end();
 
         return true;
     }
 
     VALIDATE_SERVER = async (id) => {//C
 
-        const connection = await this.#serverConnections[id].getConnection();
+        const connection = await this.#connections[id].getConnection();
 
         let checks = 0;
         let result = false;
@@ -240,8 +243,8 @@ class Connector extends EventEmitter {
 
             if (id == "ls") {
 
-                const accountsTable = (await connection.query("SHOW COLUMNS FROM accounts;"))[0];
-                const gameserversTable = (await connection.query("SHOW COLUMNS FROM gameservers;"))[0];
+                const accountsTable = (await connection.query(`SHOW COLUMNS FROM accounts;`))[0];
+                const gameserversTable = (await connection.query(`SHOW COLUMNS FROM gameservers;`))[0];
 
                 const lsConfig = this.#config["ls"].dbTableColumns;
 
@@ -269,26 +272,29 @@ class Connector extends EventEmitter {
                 if (checks == 3) {
 
                     if (addWalletAddressColumn)
-                        await connection.query("ALTER TABLE accounts ADD COLUMN wallet_address VARCHAR(42) NOT NULL DEFAULT 'not linked';");
+                        await connection.query(`ALTER TABLE accounts ADD COLUMN wallet_address VARCHAR(42) NOT NULL DEFAULT 'not linked';`);
 
                     if (addBalanceColumn)
-                        await connection.query("ALTER TABLE gameservers ADD COLUMN balance INT(10) UNSIGNED NOT NULL DEFAULT '0';");
+                        await connection.query(`ALTER TABLE gameservers ADD COLUMN balance INT(10) UNSIGNED NOT NULL DEFAULT '0';`);
 
-                    //await connection.query("ALTER TABLE accounts ADD COLUMN IF NOT EXISTS wallet_address VARCHAR(42) NOT NULL DEFAULT 'not linked';");
-                    //await connection.query("ALTER TABLE gameservers ADD COLUMN IF NOT EXISTS balance INT(10) UNSIGNED NOT NULL DEFAULT '0';");
-                    await connection.query("CREATE TABLE IF NOT EXISTS fiskpay_deposits (server_id INT(11) NOT NULL, transaction_hash VARCHAR(66) NOT NULL, character_name VARCHAR(35) NOT NULL, wallet_address VARCHAR(42) NOT NULL, amount INT(10) UNSIGNED NOT NULL, PRIMARY KEY(transaction_hash)) ENGINE = InnoDB DEFAULT CHARSET = utf8;");
-                    await connection.query("CREATE TABLE IF NOT EXISTS fiskpay_withdrawals (server_id INT(11) NOT NULL, transaction_hash VARCHAR(66) NOT NULL, character_name VARCHAR(35) NOT NULL, wallet_address VARCHAR(42) NOT NULL, amount INT(10) UNSIGNED NOT NULL, PRIMARY KEY(transaction_hash)) ENGINE = InnoDB DEFAULT CHARSET = utf8;");
-                    await connection.query("CREATE TABLE IF NOT EXISTS fiskpay_temporary (server_id INT(11) NOT NULL, character_id INT(10) NOT NULL, amount INT(10) UNSIGNED NOT NULL, refund INT(10) UNSIGNED NOT NULL, PRIMARY KEY(server_id, character_id, refund)) ENGINE = InnoDB DEFAULT CHARSET = utf8;");
+                    //await connection.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS wallet_address VARCHAR(42) NOT NULL DEFAULT 'not linked';`);
+                    //await connection.query(`ALTER TABLE gameservers ADD COLUMN IF NOT EXISTS balance INT(10) UNSIGNED NOT NULL DEFAULT '0';`);
+                    await connection.query(`CREATE TABLE IF NOT EXISTS fiskpay_deposits (server_id INT(11) NOT NULL, transaction_hash VARCHAR(66) NOT NULL, character_name VARCHAR(35) NOT NULL, wallet_address VARCHAR(42) NOT NULL, amount INT(10) UNSIGNED NOT NULL, PRIMARY KEY(transaction_hash)) ENGINE = InnoDB DEFAULT CHARSET = utf8;`);
+                    await connection.query(`CREATE TABLE IF NOT EXISTS fiskpay_withdrawals (server_id INT(11) NOT NULL, transaction_hash VARCHAR(66) NOT NULL, character_name VARCHAR(35) NOT NULL, wallet_address VARCHAR(42) NOT NULL, amount INT(10) UNSIGNED NOT NULL, PRIMARY KEY(transaction_hash)) ENGINE = InnoDB DEFAULT CHARSET = utf8;`);
+                    await connection.query(`CREATE TABLE IF NOT EXISTS fiskpay_temporary (server_id INT(11) NOT NULL, character_id INT(10) NOT NULL, amount INT(10) UNSIGNED NOT NULL, refund INT(10) UNSIGNED NOT NULL, PRIMARY KEY(server_id, character_id, refund)) ENGINE = InnoDB DEFAULT CHARSET = utf8;`);
 
-                    this.#serverTables["ls"] = lsConfig;
+                    this.#serverData["ls"].tables = lsConfig;
 
                     result = true;
                 }
             }
             else {
 
-                const charactersTable = (await connection.query("SHOW COLUMNS FROM characters;"))[0];
-                const itemsTable = (await connection.query("SHOW COLUMNS FROM items;"))[0];
+                const charactersTable = (await connection.query(`SHOW COLUMNS FROM characters;`))[0];
+                const itemsTable = (await connection.query(`SHOW COLUMNS FROM items;`))[0];
+                const itemsOnGroundTable = (await connection.query(`SHOW COLUMNS FROM items_on_ground;`))[0];
+                const clanDataTable = (await connection.query(`SHOW COLUMNS FROM clan_data;`))[0];
+                const weddingTable = (await connection.query(`SHOW COLUMNS FROM mods_wedding;`))[0];
 
                 const gsConfig = this.#config[id].dbTableColumns;
 
@@ -304,10 +310,82 @@ class Connector extends EventEmitter {
                         checks++
                 });
 
-                if (checks == 7) {
+                itemsOnGroundTable.forEach((column) => {
 
-                    this.#serverTables[id] = gsConfig;
-                    this.#serverReward[id] = this.#config[id].rewardId;
+                    if (column.Field == gsConfig.items_on_ground.itemId)
+                        checks++
+                });
+
+                clanDataTable.forEach((column) => {
+
+                    if (column.Field == gsConfig.clan_data.clanId)
+                        checks++
+                });
+
+                weddingTable.forEach((column) => {
+
+                    if (column.Field == gsConfig.mods_wedding.weddingId)
+                        checks++
+                });
+
+                if (checks == 10) {
+
+                    const groups = (await connection.query(`
+                    SELECT 
+                        SUM(IF (ids BETWEEN 268435456 AND 738197503, 1, 0)) AS group0,
+                        SUM(IF (ids BETWEEN 738197504 AND 1207959551, 1, 0)) AS group1,
+                        SUM(IF (ids BETWEEN 1207959552 AND 1677721599, 1, 0)) AS group2,
+                        SUM(IF (ids BETWEEN 1677721600 AND 2147483647, 1, 0)) AS group3
+                    FROM (
+                        SELECT id AS ids
+                        FROM (
+                            SELECT ${gsConfig.characters.characterId} AS id FROM characters
+                            UNION
+                            SELECT ${gsConfig.items.itemId} AS id FROM items
+                            UNION
+                            SELECT ${gsConfig.items_on_ground.itemId} AS id FROM items_on_ground
+                            UNION
+                            SELECT ${gsConfig.clan_data.clanId} AS id FROM clan_data
+                            UNION
+                            SELECT ${gsConfig.mods_wedding.weddingId} AS id FROM mods_wedding
+                        )aa
+                        ORDER BY ids ASC
+                    )ab                   
+                    `))[0][0];
+
+                    const group0Value = Number(groups.group0);
+                    const group1Value = Number(groups.group1);
+                    const group2Value = Number(groups.group2);
+                    const group3Value = Number(groups.group3);
+
+                    let startNextId = 268435456;
+                    let startNowGroup = "group0";
+                    let minValue = group0Value;
+
+                    if (group1Value < minValue) {
+
+                        startNextId = 738197504;
+                        startNowGroup = "group1";
+
+                        minValue = group1Value;
+                    }
+
+                    if (group2Value < minValue) {
+
+                        startNextId = 1207959552;
+                        startNowGroup = "group2";
+
+                        minValue = group2Value;
+                    }
+
+                    if (group3Value < minValue) {
+
+                        startNextId = 1677721600;
+                        startNowGroup = "group3";
+                    }
+
+                    this.#serverData[id].tables = gsConfig;
+                    this.#serverData[id].reward = { "typeId": this.#config[id].rewardTypeId, "nextId": startNextId, "nowGroup": startNowGroup, "group0": group0Value, "group1": group1Value, "group2": group2Value, "group3": group3Value };
 
                     result = true;
                 }
@@ -327,16 +405,16 @@ class Connector extends EventEmitter {
 
     GET_IDS = async () => {//C
 
-        const connection = await this.#serverConnections["ls"].getConnection();
-        const id = this.#serverTables["ls"].gameservers.gameserverId;
+        const connection = await this.#connections["ls"].getConnection();
+        const lGameserversGameserverId = this.#serverData["ls"].tables.gameservers.gameserverId;
 
         let result;
         let temporary;
 
         try {
 
-            temporary = (await connection.query("SELECT " + id + " FROM gameservers;"))[0];
-            result = temporary.map(key => key[id])
+            temporary = (await connection.query(`SELECT ${lGameserversGameserverId} FROM gameservers;`))[0];
+            result = temporary.map(key => key[lGameserversGameserverId])
         }
         catch (error) {
 
@@ -351,14 +429,14 @@ class Connector extends EventEmitter {
 
     GET_TOTAL_CLIENT_BALANCE = async () => {//P
 
-        const connection = await this.#serverConnections["ls"].getConnection();
+        const connection = await this.#connections["ls"].getConnection();
 
         let result;
         let temporary;
 
         try {
 
-            temporary = (await connection.query("SELECT SUM(balance) AS balance FROM gameservers;"))[0][0];
+            temporary = (await connection.query(`SELECT SUM(balance) AS balance FROM gameservers;`))[0][0];
             result = { "data": (String((temporary.balance != null) ? (temporary.balance) : ("0"))) };
         }
         catch (error) {
@@ -375,16 +453,16 @@ class Connector extends EventEmitter {
 
     GET_ACCOUNTS = async (ethAddress) => {//P
 
-        const connection = await this.#serverConnections["ls"].getConnection();
-        const accnm = this.#serverTables["ls"].accounts.accountUsername;
+        const connection = await this.#connections["ls"].getConnection();
+        const lCharactersAccountUsername = this.#serverData["ls"].tables.accounts.accountUsername;
 
         let result;
         let temporary;
 
         try {
 
-            temporary = (await connection.query("SELECT " + accnm + " FROM accounts WHERE wallet_address = ?;", [ethAddress]))[0];
-            result = { "data": (temporary.map(key => key[accnm])) };
+            temporary = (await connection.query(`SELECT ${lCharactersAccountUsername} FROM accounts WHERE wallet_address = ?;`, [ethAddress]))[0];
+            result = { "data": (temporary.map(key => key[lCharactersAccountUsername])) };
         }
         catch (error) {
 
@@ -400,30 +478,31 @@ class Connector extends EventEmitter {
 
     ADD_ACCOUNT = async (username, password, ethAddress) => {//P
 
-        const connection = await this.#serverConnections["ls"].getConnection();
-        const accnm = this.#serverTables["ls"].accounts.accountUsername;
-        const psw = this.#serverTables["ls"].accounts.accountPassword;
+        const connection = await this.#connections["ls"].getConnection();
+        const lCharactersAccountUsername = this.#serverData["ls"].tables.accounts.accountUsername;
+        const lAccountsAccountPassword = this.#serverData["ls"].tables.accounts.accountPassword;
 
         let result;
         let temporary;
 
         try {
 
-            await connection.query("SET autocommit = 0;");
-            await connection.query("START TRANSACTION;");
+            await connection.query(`SET autocommit = 0;`);
+            await connection.query(`START TRANSACTION;`);
 
-            temporary = (await connection.query("SELECT " + psw + ", wallet_address FROM accounts WHERE " + accnm + " = ?", [username]))[0];
+            temporary = (await connection.query(`SELECT ${lAccountsAccountPassword}, wallet_address FROM accounts WHERE ${lCharactersAccountUsername} = ?`, [username]))[0];
 
             if (temporary.length == 1) {
 
-                temporary = temporary[0];
+                const walletAddress = temporary[0].wallet_address;
+                const targetPassword = temporary[0][lAccountsAccountPassword];
 
-                if (temporary.wallet_address != "not linked")
+                if (walletAddress != "not linked")
                     result = { "fail": "Account " + username + " already linked to an Ethereum address" };
-                else if (!validatePassword(password, temporary[psw]))
+                else if (!validatePassword(password, targetPassword))
                     result = { "fail": "Username - password mismatch" };
                 else
-                    result = { "data": ((await connection.query("UPDATE accounts SET wallet_address = ? WHERE " + accnm + " = ? AND wallet_address = 'not linked' AND " + psw + " = ?;", [ethAddress, username, temporary[psw]]))[0].changedRows == 1) };
+                    result = { "data": ((await connection.query(`UPDATE accounts SET wallet_address = ? WHERE ${lCharactersAccountUsername} = ? AND wallet_address = 'not linked' AND ${lAccountsAccountPassword} = '${targetPassword}';`, [ethAddress, username]))[0].changedRows == 1) };
             }
             else if (temporary.length == 0)
                 result = { "fail": "Account " + username + " does not exist" };
@@ -438,9 +517,9 @@ class Connector extends EventEmitter {
         finally {
 
             if (result.data === true)
-                await connection.query("COMMIT;");
+                await connection.query(`COMMIT;`);
             else
-                await connection.query("ROLLBACK;");
+                await connection.query(`ROLLBACK;`);
 
             connection.release();
             return result;
@@ -449,30 +528,31 @@ class Connector extends EventEmitter {
 
     REMOVE_ACCOUNT = async (username, password, ethAddress) => {//P
 
-        const connection = await this.#serverConnections["ls"].getConnection();
-        const accnm = this.#serverTables["ls"].accounts.accountUsername;
-        const psw = this.#serverTables["ls"].accounts.accountPassword;
+        const connection = await this.#connections["ls"].getConnection();
+        const lCharactersAccountUsername = this.#serverData["ls"].tables.accounts.accountUsername;
+        const lAccountsAccountPassword = this.#serverData["ls"].tables.accounts.accountPassword;
 
         let result = false;
         let temporary;
 
         try {
 
-            await connection.query("SET autocommit = 0;");
-            await connection.query("START TRANSACTION;");
+            await connection.query(`SET autocommit = 0;`);
+            await connection.query(`START TRANSACTION;`);
 
-            temporary = (await connection.query("SELECT " + psw + ", wallet_address FROM accounts WHERE " + accnm + " = ?", [username]))[0];
+            temporary = (await connection.query(`SELECT ${lAccountsAccountPassword}, wallet_address FROM accounts WHERE ${lCharactersAccountUsername} = ?`, [username]))[0];
 
             if (temporary.length == 1) {
 
-                temporary = temporary[0];
+                const walletAddress = temporary[0].wallet_address;
+                const targetPassword = temporary[0][lAccountsAccountPassword];
 
-                if (temporary.wallet_address != ethAddress)
+                if (walletAddress != ethAddress)
                     result = { "fail": "Account " + username + " not linked to your Ethereum address" };
-                else if (!validatePassword(password, temporary[psw]))
+                else if (!validatePassword(password, targetPassword))
                     result = { "fail": "Username - password mismatch" };
                 else
-                    result = { "data": ((await connection.query("UPDATE accounts SET wallet_address = 'not linked' WHERE " + accnm + " = ? AND wallet_address = ? AND " + psw + " = ?;", [username, ethAddress, temporary[psw]]))[0].changedRows == 1) };
+                    result = { "data": ((await connection.query(`UPDATE accounts SET wallet_address = 'not linked' WHERE ${lCharactersAccountUsername} = ? AND wallet_address = ? AND ${lAccountsAccountPassword} = '${targetPassword}';`, [username, ethAddress]))[0].changedRows == 1) };
             }
             else if (temporary.length == 0)
                 result = { "fail": "Account " + username + " does not exist" };
@@ -487,9 +567,9 @@ class Connector extends EventEmitter {
         finally {
 
             if (result.data === true)
-                await connection.query("COMMIT;");
+                await connection.query(`COMMIT;`);
             else
-                await connection.query("ROLLBACK;");
+                await connection.query(`ROLLBACK;`);
 
             connection.release();
             return result;
@@ -498,17 +578,17 @@ class Connector extends EventEmitter {
 
     GET_CHARACTERS = async (id, username) => {//P
 
-        const connection = await this.#serverConnections[id].getConnection();
-        const accnm = this.#serverTables[id].characters.accountUsername;
-        const chnm = this.#serverTables[id].characters.characterName;
+        const connection = await this.#connections[id].getConnection();
+        const lCharactersAccountUsername = this.#serverData[id].tables.characters.accountUsername;
+        const lCharactersCharacterName = this.#serverData[id].tables.characters.characterName;
 
         let result;
         let temporary;
 
         try {
 
-            temporary = (await connection.query("SELECT " + chnm + " FROM characters WHERE " + accnm + " = ?;", [username]))[0];
-            result = { "data": (temporary.map(key => key[chnm])) };
+            temporary = (await connection.query(`SELECT ${lCharactersCharacterName} FROM characters WHERE ${lCharactersAccountUsername} = ?;`, [username]))[0];
+            result = { "data": (temporary.map(key => key[lCharactersCharacterName])) };
         }
         catch (error) {
 
@@ -524,19 +604,20 @@ class Connector extends EventEmitter {
 
     GET_CHARACTER_BALANCE = async (id, charname) => {//P
 
-        const connection = await this.#serverConnections[id].getConnection();
-        const cchnm = this.#serverTables[id].characters.characterName;
-        const cchid = this.#serverTables[id].characters.characterId;
-        const ichid = this.#serverTables[id].items.characterId;
-        const iitmtyid = this.#serverTables[id].items.itemTypeId;
-        const iitam = this.#serverTables[id].items.itemAmount;
+        const connection = await this.#connections[id].getConnection();
+        const lCharactersCharacterName = this.#serverData[id].tables.characters.characterName;
+        const lCharactersCharacterId = this.#serverData[id].tables.characters.characterId;
+        const lItemsCharacterId = this.#serverData[id].tables.items.characterId;
+        const lItemsItemTypeId = this.#serverData[id].tables.items.itemTypeId;
+        const lItemsItemAmount = this.#serverData[id].tables.items.itemAmount;
+        const lRewardTypeId = this.#serverData[id].reward.typeId;
 
         let result;
         let temporary;
 
         try {
 
-            temporary = (await connection.query("SELECT SUM(i." + iitam + ") AS balance FROM items AS i, characters AS c WHERE c." + cchid + " = i." + ichid + " AND c." + cchnm + " = ? AND i." + iitmtyid + " = ? AND i.loc = 'inventory';", [charname, this.#serverReward[id]]))[0][0];
+            temporary = (await connection.query(`SELECT SUM(i.${lItemsItemAmount}) AS balance FROM items AS i, characters AS c WHERE c.${lCharactersCharacterId} = 'i.${lItemsCharacterId}' AND c.${lCharactersCharacterName} = ? AND i.${lItemsItemTypeId} = '${lRewardTypeId}' AND i.loc = 'inventory';`, [charname]))[0][0];
             result = { "data": (String((temporary.balance != null) ? (temporary.balance) : ("0"))) };
         }
         catch (error) {
@@ -553,25 +634,28 @@ class Connector extends EventEmitter {
 
     UPDATE_GAMESERVER_BALANCE = async (id) => {//C
 
-        const connectionLS = await this.#serverConnections["ls"].getConnection();
-        const connectionGS = await this.#serverConnections[id].getConnection();
-        const iitmtyid = this.#serverTables[id].items.itemTypeId;
-        const iitam = this.#serverTables[id].items.itemAmount;
-        const srvid = this.#serverTables["ls"].gameservers.gameserverId;
+        const connectionLS = await this.#connections["ls"].getConnection();
+        const connectionGS = await this.#connections[id].getConnection();
+        const lItemsItemTypeId = this.#serverData[id].tables.items.itemTypeId;
+        const lItemsItemAmount = this.#serverData[id].tables.items.itemAmount;
+        const lGameserversGameserverId = this.#serverData["ls"].tables.gameservers.gameserverId;
+        const lRewardTypeId = this.#serverData[id].reward.typeId;
 
         let result = false;
         let temporary;
 
         try {
 
-            await connectionLS.query("SET autocommit = 0;");
-            await connectionGS.query("SET autocommit = 0;");
-            await connectionLS.query("START TRANSACTION;");
-            await connectionGS.query("START TRANSACTION;");
+            await connectionLS.query(`SET autocommit = 0;`);
+            await connectionGS.query(`SET autocommit = 0;`);
+            await connectionLS.query(`START TRANSACTION;`);
+            await connectionGS.query(`START TRANSACTION;`);
 
-            temporary = (await connectionGS.query("SELECT SUM(" + iitam + ") AS balance FROM items WHERE  " + iitmtyid + " = ?;", [this.#serverReward[id]]))[0][0];
-            temporary = String((temporary.balance != null) ? (temporary.balance) : ("0"));
-            result = ((await connectionLS.query("UPDATE gameservers SET balance = ? WHERE " + srvid + " = ?;", [temporary, id]))[0].changedRows == 1);
+            temporary = (await connectionGS.query(`SELECT SUM(${lItemsItemAmount}) AS balance FROM items WHERE ${lItemsItemTypeId} = '${lRewardTypeId}';`))[0][0];
+
+            const balance = String((temporary.balance != null) ? (temporary.balance) : ("0"));
+
+            result = ((await connectionLS.query(`UPDATE gameservers SET balance = '${balance}' WHERE ${lGameserversGameserverId} = ?;`, [id]))[0].changedRows == 1);
         }
         catch (error) {
 
@@ -582,13 +666,13 @@ class Connector extends EventEmitter {
 
             if (result === true) {
 
-                await connectionLS.query("COMMIT;");
-                await connectionGS.query("COMMIT;");
+                await connectionLS.query(`COMMIT;`);
+                await connectionGS.query(`COMMIT;`);
             }
             else {
 
-                await connectionLS.query("ROLLBACK;");
-                await connectionGS.query("ROLLBACK;");
+                await connectionLS.query(`ROLLBACK;`);
+                await connectionGS.query(`ROLLBACK;`);
             }
 
             connectionLS.release();
@@ -599,15 +683,15 @@ class Connector extends EventEmitter {
 
     CHECK_IF_CHARACTER_OFFLINE = async (id, character) => {//P
 
-        const connection = await this.#serverConnections[id].getConnection();
-        const cchnm = this.#serverTables[id].characters.characterName;
+        const connection = await this.#connections[id].getConnection();
+        const lCharactersCharacterName = this.#serverData[id].tables.characters.characterName;
 
         let result = false;
         let temporary;
 
         try {
 
-            temporary = (await connection.query("SELECT online FROM characters WHERE  " + cchnm + " = ? LIMIT 1;", [character]))[0];
+            temporary = (await connection.query(`SELECT online FROM characters WHERE ${lCharactersCharacterName} = ? LIMIT 1;`, [character]))[0];
             result = { "data": (temporary.length == 1 && String(temporary[0].online) != "1") };
         }
         catch (error) {
@@ -624,52 +708,131 @@ class Connector extends EventEmitter {
 
     LOG_DEPOSIT = async (txHash, from, amount, id, character) => {//C
 
-        const connectionLS = await this.#serverConnections["ls"].getConnection();
-        const connectionGS = await this.#serverConnections[id].getConnection();
-        const cchnm = this.#serverTables[id].characters.characterName;
-        const cchid = this.#serverTables[id].characters.characterId
-        const iid = this.#serverTables[id].items.itemId;;
-        const ichid = this.#serverTables[id].items.characterId;
-        const iitmtyid = this.#serverTables[id].items.itemTypeId;
-        const iitam = this.#serverTables[id].items.itemAmount;
+        const connectionLS = await this.#connections["ls"].getConnection();
+        const connectionGS = await this.#connections[id].getConnection();
+        const lCharactersCharacterName = this.#serverData[id].tables.characters.characterName;
+        const lCharactersCharacterId = this.#serverData[id].tables.characters.characterId;
+        const lItemsItemId = this.#serverData[id].tables.items.itemId;
+        const lItemsCharacterId = this.#serverData[id].tables.items.characterId;
+        const lItemsItemTypeId = this.#serverData[id].tables.items.itemTypeId;
+        const lItemsItemAmount = this.#serverData[id].tables.items.itemAmount;
+        const lRewardTypeId = this.#serverData[id].reward.typeId;
 
         let result = false;
         let temporary;
 
         try {
 
-            await connectionLS.query("SET autocommit = 0;");
-            await connectionGS.query("SET autocommit = 0;");
-            await connectionLS.query("START TRANSACTION;");
-            await connectionGS.query("START TRANSACTION;");
+            await connectionLS.query(`SET autocommit = 0;`);
+            await connectionGS.query(`SET autocommit = 0;`);
+            await connectionLS.query(`START TRANSACTION;`);
+            await connectionGS.query(`START TRANSACTION;`);
 
-            temporary = (await connectionGS.query("SELECT " + cchid + " FROM characters WHERE  " + cchnm + " = ? LIMIT 1;", [character]))[0][0];
+            const groups = (await connectionGS.query(`
+            SELECT 
+                SUM(IF (ids BETWEEN 268435456 AND 738197503, 1, 0)) AS group0,
+                SUM(IF (ids BETWEEN 738197504 AND 1207959551, 1, 0)) AS group1,
+                SUM(IF (ids BETWEEN 1207959552 AND 1677721599, 1, 0)) AS group2,
+                SUM(IF (ids BETWEEN 1677721600 AND 2147483647, 1, 0)) AS group3
+            FROM (
+                SELECT id AS ids
+                FROM (
+                    SELECT ${this.#serverData[id].tables.characters.characterId} AS id FROM characters
+                    UNION
+                    SELECT ${this.#serverData[id].tables.items.itemId} AS id FROM items
+                    UNION
+                    SELECT ${this.#serverData[id].tables.items_on_ground.itemId} AS id FROM items_on_ground
+                    UNION
+                    SELECT ${this.#serverData[id].tables.clan_data.clanId} AS id FROM clan_data
+                    UNION
+                    SELECT ${this.#serverData[id].tables.mods_wedding.weddingId} AS id FROM mods_wedding
+                )aa
+                ORDER BY ids ASC
+            )ab                   
+            `))[0][0];
 
-            const charID = temporary[cchid];
+            const newGroup0Value = Number(groups.group0);
+            const newGroup1Value = Number(groups.group1);
+            const newGroup2Value = Number(groups.group2);
+            const newGroup3Value = Number(groups.group3);
 
-            temporary = (await connectionGS.query("SELECT " + iid + " FROM items WHERE  " + iitmtyid + " = ? AND loc = 'inventory' AND " + ichid + " = ? LIMIT 1;", [this.#serverReward[id], charID]))[0];
+            temporary = (await connectionGS.query(`SELECT ${lCharactersCharacterId} FROM characters WHERE ${lCharactersCharacterName} = ? LIMIT 1;`, [character]))[0][0];
+
+            const charId = temporary[lCharactersCharacterId];
+
+            temporary = (await connectionGS.query(`SELECT ${lItemsItemId} FROM items WHERE ${lItemsItemTypeId} = '${lRewardTypeId}' AND loc = 'inventory' AND ${lItemsCharacterId} = '${charId}' LIMIT 1;`))[0];
 
             if (temporary.length == 1) {
 
-                if ((await connectionGS.query("UPDATE items SET " + iitam + " = " + iitam + " + ? WHERE " + iid + " = ? LIMIT 1;", [amount, temporary[0][iid]]))[0].changedRows == 1)
-                    if ((await connectionLS.query("INSERT INTO fiskpay_deposits (server_id, transaction_hash, character_name, wallet_address, amount) VALUES (?, ?, ?, ?, ?);", [id, txHash, character, from, amount]))[0].affectedRows == 1)
+                const itemId = temporary[0][lItemsItemId];
+
+                if ((await connectionGS.query(`UPDATE items SET ${lItemsItemAmount} = ${lItemsItemAmount} + ? WHERE ${lItemsItemId} = '${itemId}' LIMIT 1;`, [amount]))[0].changedRows == 1) {
+
+                    if ((await connectionLS.query(`INSERT INTO fiskpay_deposits (server_id, transaction_hash, character_name, wallet_address, amount) VALUES (?, ?, ?, ?, ?);`, [id, txHash, character, from, amount]))[0].affectedRows == 1) {
+
                         result = true;
+
+                        this.#serverData[id].reward.group0 = newGroup0Value;
+                        this.#serverData[id].reward.group1 = newGroup1Value;
+                        this.#serverData[id].reward.group2 = newGroup2Value;
+                        this.#serverData[id].reward.group3 = newGroup3Value;
+                    }
+                }
             }
             else {
 
-                let testID = 2100000000 + Math.floor(Math.random() * 9999900);
+                const currentGroup0Value = this.#serverData[id].reward.group0;
+                const currentGroup1Value = this.#serverData[id].reward.group1;
+                const currentGroup2Value = this.#serverData[id].reward.group2;
+                const currentGroup3Value = this.#serverData[id].reward.group3;
+
+                let newNextId = this.#serverData[id].reward.nextId;
+                let newNowGroup = this.#serverData[id].reward.nowGroup;
+
+                if (newNowGroup == "group0" && (newGroup0Value > currentGroup0Value || newGroup3Value > currentGroup3Value)) {
+
+                    newNextId = 1207959552;
+                    newNowGroup = "group2";
+                }
+                else if (newNowGroup == "group1" && (newGroup1Value > currentGroup1Value || newGroup0Value > currentGroup0Value)) {
+
+                    newNextId = 1677721600;
+                    newNowGroup = "group3";
+                }
+                else if (newNowGroup == "group2" && (newGroup2Value > currentGroup2Value || newGroup1Value > currentGroup1Value)) {
+
+                    newNextId = 268435456;
+                    newNowGroup = "group0";
+                }
+                else if (newNowGroup == "group3" && (newGroup3Value > currentGroup3Value || newGroup2Value > currentGroup2Value)) {
+
+                    newNextId = 738197504;
+                    newNowGroup = "group1";
+                }
 
                 do {
 
-                    testID++;
-                    temporary = (await connectionGS.query("SELECT COUNT(" + iid + ") AS instances FROM items WHERE " + iid + " = ?;", [testID]))[0][0];
+                    temporary = (await connectionGS.query(`SELECT COUNT(${lItemsItemId}) AS instances FROM items WHERE ${lItemsItemId} = '${newNextId}';`))[0][0];
+                    newNextId++;
 
                 } while (temporary.instances > 0)
 
-                if ((await connectionGS.query("INSERT INTO items (" + ichid + ", " + iid + ", " + iitmtyid + ", " + iitam + ", loc) VALUES (?, ?, ?, ?, 'inventory');", [charID, testID, this.#serverReward[id], amount]))[0].affectedRows == 1)
-                    if ((await connectionLS.query("INSERT INTO fiskpay_deposits (server_id, transaction_hash, character_name, wallet_address, amount) VALUES (?, ?, ?, ?, ?);", [id, txHash, character, from, amount]))[0].affectedRows == 1)
+                if ((await connectionGS.query(`INSERT INTO items (${lItemsCharacterId}, ${lItemsItemId}, ${lItemsItemTypeId}, ${lItemsItemAmount}, loc) VALUES (${charId}, ${newNextId} - 1, ${lRewardTypeId}, ?, 'inventory');`, [amount]))[0].affectedRows == 1) {
+
+                    if ((await connectionLS.query(`INSERT INTO fiskpay_deposits (server_id, transaction_hash, character_name, wallet_address, amount) VALUES (?, ?, ?, ?, ?);`, [id, txHash, character, from, amount]))[0].affectedRows == 1) {
+
                         result = true;
+
+                        this.#serverData[id].reward.nextId = newNextId;
+                        this.#serverData[id].reward.nowGroup = newNowGroup;
+                        this.#serverData[id].reward.group0 = ((newNowGroup == "group0") ? (newGroup0Value + 1) : (newGroup0Value));
+                        this.#serverData[id].reward.group1 = ((newNowGroup == "group1") ? (newGroup1Value + 1) : (newGroup1Value));
+                        this.#serverData[id].reward.group2 = ((newNowGroup == "group2") ? (newGroup2Value + 1) : (newGroup2Value));
+                        this.#serverData[id].reward.group3 = ((newNowGroup == "group3") ? (newGroup3Value + 1) : (newGroup3Value));
+                    }
+                }
             }
+
         }
         catch (error) {
 
@@ -680,13 +843,13 @@ class Connector extends EventEmitter {
 
             if (result === true) {
 
-                await connectionLS.query("COMMIT;");
-                await connectionGS.query("COMMIT;");
+                await connectionLS.query(`COMMIT;`);
+                await connectionGS.query(`COMMIT;`);
             }
             else {
 
-                await connectionLS.query("ROLLBACK;");
-                await connectionGS.query("ROLLBACK;");
+                await connectionLS.query(`ROLLBACK;`);
+                await connectionGS.query(`ROLLBACK;`);
             }
 
             connectionLS.release();
@@ -697,55 +860,82 @@ class Connector extends EventEmitter {
 
     CREATE_REFUND = async (address, amount, id, character, refund) => {//P
 
-        const connectionLS = await this.#serverConnections["ls"].getConnection();
-        const connectionGS = await this.#serverConnections[id].getConnection();
-        const ausrnm = this.#serverTables["ls"].accounts.accountUsername;
-        const cusrnm = this.#serverTables[id].characters.accountUsername;
-        const cchnm = this.#serverTables[id].characters.characterName;
-        const cchid = this.#serverTables[id].characters.characterId
-        const iid = this.#serverTables[id].items.itemId;;
-        const ichid = this.#serverTables[id].items.characterId;
-        const iitmtyid = this.#serverTables[id].items.itemTypeId;
-        const iitam = this.#serverTables[id].items.itemAmount;
+        const connectionLS = await this.#connections["ls"].getConnection();
+        const connectionGS = await this.#connections[id].getConnection();
+        const lAccountsAccountUsername = this.#serverData["ls"].tables.accounts.accountUsername;
+        const lCharactersAccountUsername = this.#serverData[id].tables.characters.accountUsername;
+        const lCharactersCharacterName = this.#serverData[id].tables.characters.characterName;
+        const lCharactersCharacterId = this.#serverData[id].tables.characters.characterId
+        const lItemsItemId = this.#serverData[id].tables.items.itemId;;
+        const lItemsCharacterId = this.#serverData[id].tables.items.characterId;
+        const lItemsItemTypeId = this.#serverData[id].tables.items.itemTypeId;
+        const lItemsItemAmount = this.#serverData[id].tables.items.itemAmount;
+        const lRewardTypeId = this.#serverData[id].reward.typeId;
 
         let result;
         let temporary;
 
         try {
 
-            await connectionLS.query("SET autocommit = 0;");
-            await connectionGS.query("SET autocommit = 0;");
-            await connectionLS.query("START TRANSACTION;");
-            await connectionGS.query("START TRANSACTION;");
+            await connectionLS.query(`SET autocommit = 0;`);
+            await connectionGS.query(`SET autocommit = 0;`);
+            await connectionLS.query(`START TRANSACTION;`);
+            await connectionGS.query(`START TRANSACTION;`);
 
-            temporary = (await connectionGS.query("SELECT " + cchid + ", " + cusrnm + " FROM characters WHERE  " + cchnm + " = ? LIMIT 1;", [character]))[0];
+            const groups = (await connectionGS.query(`
+            SELECT 
+                SUM(IF (ids BETWEEN 268435456 AND 738197503, 1, 0)) AS group0,
+                SUM(IF (ids BETWEEN 738197504 AND 1207959551, 1, 0)) AS group1,
+                SUM(IF (ids BETWEEN 1207959552 AND 1677721599, 1, 0)) AS group2,
+                SUM(IF (ids BETWEEN 1677721600 AND 2147483647, 1, 0)) AS group3
+            FROM (
+                SELECT id AS ids
+                FROM (
+                    SELECT ${this.#serverData[id].tables.characters.characterId} AS id FROM characters
+                    UNION
+                    SELECT ${this.#serverData[id].tables.items.itemId} AS id FROM items
+                    UNION
+                    SELECT ${this.#serverData[id].tables.items_on_ground.itemId} AS id FROM items_on_ground
+                    UNION
+                    SELECT ${this.#serverData[id].tables.clan_data.clanId} AS id FROM clan_data
+                    UNION
+                    SELECT ${this.#serverData[id].tables.mods_wedding.weddingId} AS id FROM mods_wedding
+                )aa
+                ORDER BY ids ASC
+            )ab                   
+            `))[0][0];
+
+            const newGroup0Value = Number(groups.group0);
+            const newGroup1Value = Number(groups.group1);
+            const newGroup2Value = Number(groups.group2);
+            const newGroup3Value = Number(groups.group3);
+
+            temporary = (await connectionGS.query(`SELECT ${lCharactersCharacterId}, ${lCharactersAccountUsername} FROM characters WHERE ${lCharactersCharacterName} = ? LIMIT 1;`, [character]))[0];
 
             if (temporary.length != 1)
                 result = { "fail": "Character " + character + " data not found" };
             else {
 
-                temporary = temporary[0];
+                const charId = temporary[0][lCharactersCharacterId];
+                const charLogin = temporary[0][lCharactersAccountUsername];
 
-                const charID = temporary[cchid];
-                const charLogin = temporary[cusrnm];
-
-                if ((await connectionLS.query("SELECT server_id, character_id, amount, refund FROM fiskpay_temporary WHERE server_id = ? AND character_id = ? AND amount = ? AND refund = ?;", [id, charID, amount, refund]))[0].length != 0)
+                if ((await connectionLS.query(`SELECT server_id, character_id, amount, refund FROM fiskpay_temporary WHERE server_id = ? AND character_id = '${charId}' AND amount = ? AND refund = ?;`, [id, amount, refund]))[0].length != 0)
                     result = { "fail": "Trying to exploit? Help us grow, report your findings" };
                 else {
 
-                    temporary = (await connectionLS.query("SELECT wallet_address FROM accounts WHERE " + ausrnm + " = ? LIMIT 1;", [charLogin]))[0];
+                    temporary = (await connectionLS.query(`SELECT wallet_address FROM accounts WHERE ${lAccountsAccountUsername} = '${charLogin}' LIMIT 1;`))[0];
 
                     if (temporary.length != 1)
                         result = { "fail": "Character " + character + " login data not found" };
                     else {
 
-                        temporary = temporary[0];
+                        const walletAddress = temporary[0].wallet_address;
 
-                        if (temporary.wallet_address != address)
+                        if (walletAddress != address)
                             result = { "fail": "Wallet validation failed" };
                         else {
 
-                            temporary = (await connectionGS.query("SELECT SUM(" + iitam + ") AS balance FROM items WHERE " + iitmtyid + " = ? AND " + ichid + " = ? AND loc = 'inventory';", [this.#serverReward[id], charID]))[0][0];
+                            temporary = (await connectionGS.query(`SELECT SUM(${lItemsItemAmount}) AS balance FROM items WHERE ${lItemsItemTypeId} = '${lRewardTypeId}' AND ${lItemsCharacterId} = '${charId}' AND loc = 'inventory';`))[0][0];
 
                             const charBalance = Number((temporary.balance != null) ? (temporary.balance) : (0));
 
@@ -756,18 +946,18 @@ class Connector extends EventEmitter {
                                 let remainAmount = amount;
                                 let index = 0;
 
-                                temporary = (await connectionGS.query("SELECT " + iitam + ", " + iid + " FROM items WHERE  " + iitmtyid + " = ? AND " + ichid + " = ? AND loc = 'inventory';", [this.#serverReward[id], charID]))[0];
+                                temporary = (await connectionGS.query(`SELECT ${lItemsItemAmount}, ${lItemsItemId} FROM items WHERE ${lItemsItemTypeId} = '${lRewardTypeId}' AND ${lItemsCharacterId} = '${charId}' AND loc = 'inventory';`))[0];
 
                                 while (remainAmount > 0) {
 
-                                    const rowItemAmount = temporary[index][iitam];
-                                    const rowItemID = temporary[index][iid];
+                                    const rowItemAmount = temporary[index][lItemsItemAmount];
+                                    const rowItemId = temporary[index][lItemsItemId];
 
-                                    if (rowItemAmount == remainAmount && (await connectionGS.query("DELETE FROM items WHERE " + iid + " = ? LIMIT 1;", [rowItemID]))[0].affectedRows == 1)
+                                    if (rowItemAmount == remainAmount && (await connectionGS.query(`DELETE FROM items WHERE ${lItemsItemId} = '${rowItemId}' LIMIT 1;`))[0].affectedRows == 1)
                                         remainAmount = 0;
-                                    else if (rowItemAmount > remainAmount && (await connectionGS.query("UPDATE items SET " + iitam + " = " + iitam + " - ? WHERE " + iid + " = ? LIMIT 1;", [remainAmount, rowItemID]))[0].changedRows == 1)
+                                    else if (rowItemAmount > remainAmount && (await connectionGS.query(`UPDATE items SET ${lItemsItemAmount} = ${lItemsItemAmount} - '${remainAmount}' WHERE ${lItemsItemId} = '${rowItemId}' LIMIT 1;`))[0].changedRows == 1)
                                         remainAmount = 0;
-                                    else if ((await connectionGS.query("DELETE FROM items WHERE " + iid + " = ? LIMIT 1;", [rowItemID]))[0].affectedRows == 1)
+                                    else if ((await connectionGS.query(`DELETE FROM items WHERE ${lItemsItemId} = '${rowItemId}' LIMIT 1;`))[0].affectedRows == 1)
                                         remainAmount = remainAmount - rowItemAmount;
                                     else
                                         break;
@@ -777,8 +967,17 @@ class Connector extends EventEmitter {
 
                                 if (remainAmount > 0)
                                     result = { "fail": "Token removal failed" };
+                                else if ((await connectionLS.query(`INSERT INTO fiskpay_temporary (server_id, character_id, amount, refund) VALUES (?, ${charId}, ?, ?);`, [id, amount, refund]))[0].affectedRows == 1) {
+
+                                    result = { "data": true };
+
+                                    this.#serverData[id].reward.group0 = newGroup0Value;
+                                    this.#serverData[id].reward.group1 = newGroup1Value;
+                                    this.#serverData[id].reward.group2 = newGroup2Value;
+                                    this.#serverData[id].reward.group3 = newGroup3Value;
+                                }
                                 else
-                                    result = { "data": ((await connectionLS.query("INSERT INTO fiskpay_temporary (server_id, character_id, amount, refund) VALUES (?, ?, ?, ?);", [id, charID, amount, refund]))[0].affectedRows == 1) };
+                                    result = { "data": false };
                             }
                         }
                     }
@@ -795,13 +994,13 @@ class Connector extends EventEmitter {
 
             if (result.data === true) {
 
-                await connectionLS.query("COMMIT;");
-                await connectionGS.query("COMMIT;");
+                await connectionLS.query(`COMMIT;`);
+                await connectionGS.query(`COMMIT;`);
             }
             else {
 
-                await connectionLS.query("ROLLBACK;");
-                await connectionGS.query("ROLLBACK;");
+                await connectionLS.query(`ROLLBACK;`);
+                await connectionGS.query(`ROLLBACK;`);
             }
 
             connectionLS.release();
@@ -813,25 +1012,27 @@ class Connector extends EventEmitter {
 
     LOG_WITHDRAWAL = async (txHash, to, amount, id, character, refund) => {//C
 
-        const connectionLS = await this.#serverConnections["ls"].getConnection();
-        const connectionGS = await this.#serverConnections[id].getConnection();
-        const cchnm = this.#serverTables[id].characters.characterName;
-        const cchid = this.#serverTables[id].characters.characterId
+        const connectionLS = await this.#connections["ls"].getConnection();
+        const connectionGS = await this.#connections[id].getConnection();
+        const lCharactersCharacterName = this.#serverData[id].tables.characters.characterName;
+        const lCharactersCharacterId = this.#serverData[id].tables.characters.characterId
 
         let result = false;
         let temporary;
 
         try {
 
-            await connectionLS.query("SET autocommit = 0;");
-            await connectionGS.query("SET autocommit = 0;");
-            await connectionLS.query("START TRANSACTION;");
-            await connectionGS.query("START TRANSACTION;");
+            await connectionLS.query(`SET autocommit = 0;`);
+            await connectionGS.query(`SET autocommit = 0;`);
+            await connectionLS.query(`START TRANSACTION;`);
+            await connectionGS.query(`START TRANSACTION;`);
 
-            temporary = (await connectionGS.query("SELECT " + cchid + " FROM characters WHERE  " + cchnm + " = ? LIMIT 1;", [character]))[0][0];
+            temporary = (await connectionGS.query(`SELECT ${lCharactersCharacterId} FROM characters WHERE ${lCharactersCharacterName} = ? LIMIT 1;`, [character]))[0][0];
 
-            if ((await connectionLS.query("DELETE FROM fiskpay_temporary WHERE server_id = ? AND character_id = ? AND amount = ? AND refund = ? LIMIT 1;", [id, temporary[cchid], amount, refund]))[0].affectedRows == 1)
-                if ((await connectionLS.query("INSERT INTO fiskpay_withdrawals (server_id, transaction_hash, character_name, wallet_address, amount) VALUES (?, ?, ?, ?, ?);", [id, txHash, character, to, amount]))[0].affectedRows == 1)
+            const charId = temporary[lCharactersCharacterId];
+
+            if ((await connectionLS.query(`DELETE FROM fiskpay_temporary WHERE character_id = '${charId}' AND server_id = ? AND amount = ? AND refund = ? LIMIT 1;`, [id, amount, refund]))[0].affectedRows == 1)
+                if ((await connectionLS.query(`INSERT INTO fiskpay_withdrawals (server_id, transaction_hash, character_name, wallet_address, amount) VALUES (?, ?, ?, ?, ?);`, [id, txHash, character, to, amount]))[0].affectedRows == 1)
                     result = true;
         }
         catch (error) {
@@ -843,13 +1044,13 @@ class Connector extends EventEmitter {
 
             if (result === true) {
 
-                await connectionLS.query("COMMIT;");
-                await connectionGS.query("COMMIT;");
+                await connectionLS.query(`COMMIT;`);
+                await connectionGS.query(`COMMIT;`);
             }
             else {
 
-                await connectionLS.query("ROLLBACK;");
-                await connectionGS.query("ROLLBACK;");
+                await connectionLS.query(`ROLLBACK;`);
+                await connectionGS.query(`ROLLBACK;`);
             }
 
             connectionLS.release();
@@ -861,64 +1062,134 @@ class Connector extends EventEmitter {
 
     REFUND_CHARACTERS = async (id) => {//C
 
-        const connectionLS = await this.#serverConnections["ls"].getConnection();
-        const connectionGS = await this.#serverConnections[id].getConnection();
-        const iid = this.#serverTables[id].items.itemId;;
-        const ichid = this.#serverTables[id].items.characterId;
-        const iitmtyid = this.#serverTables[id].items.itemTypeId;
-        const iitam = this.#serverTables[id].items.itemAmount;
-
-        const rewardID = this.#serverReward[id];
+        const connectionLS = await this.#connections["ls"].getConnection();
+        const connectionGS = await this.#connections[id].getConnection();
+        const lItemsItemId = this.#serverData[id].tables.items.itemId;;
+        const lItemsCharacterId = this.#serverData[id].tables.items.characterId;
+        const lItemsItemTypeId = this.#serverData[id].tables.items.itemTypeId;
+        const lItemsItemAmount = this.#serverData[id].tables.items.itemAmount;
+        const lRewardTypeId = this.#serverData[id].reward.typeId;
 
         let result = false;
         let temporary;
 
         try {
 
-            await connectionLS.query("SET autocommit = 0;");
-            await connectionGS.query("SET autocommit = 0;");
-            await connectionLS.query("START TRANSACTION;");
-            await connectionGS.query("START TRANSACTION;");
+            await connectionLS.query(`SET autocommit = 0;`);
+            await connectionGS.query(`SET autocommit = 0;`);
+            await connectionLS.query(`START TRANSACTION;`);
+            await connectionGS.query(`START TRANSACTION;`);
 
-            const listOfExpired = ((await connectionLS.query("SELECT character_id, amount, refund FROM fiskpay_temporary WHERE  refund < ? AND server_id = ?", [(Math.floor(Date.now() / 1000) + 30), id]))[0]);
-            const nListOfExpired = listOfExpired.length;
+            const groups = (await connectionGS.query(`
+            SELECT 
+                SUM(IF (ids BETWEEN 268435456 AND 738197503, 1, 0)) AS group0,
+                SUM(IF (ids BETWEEN 738197504 AND 1207959551, 1, 0)) AS group1,
+                SUM(IF (ids BETWEEN 1207959552 AND 1677721599, 1, 0)) AS group2,
+                SUM(IF (ids BETWEEN 1677721600 AND 2147483647, 1, 0)) AS group3
+            FROM (
+                SELECT id AS ids
+                FROM (
+                    SELECT ${this.#serverData[id].tables.characters.characterId} AS id FROM characters
+                    UNION
+                    SELECT ${this.#serverData[id].tables.items.itemId} AS id FROM items
+                    UNION
+                    SELECT ${this.#serverData[id].tables.items_on_ground.itemId} AS id FROM items_on_ground
+                    UNION
+                    SELECT ${this.#serverData[id].tables.clan_data.clanId} AS id FROM clan_data
+                    UNION
+                    SELECT ${this.#serverData[id].tables.mods_wedding.weddingId} AS id FROM mods_wedding
+                )aa
+                ORDER BY ids ASC
+            )ab                   
+            `))[0][0];
+
+            const newGroup0Value = Number(groups.group0);
+            const newGroup1Value = Number(groups.group1);
+            const newGroup2Value = Number(groups.group2);
+            const newGroup3Value = Number(groups.group3);
+
+            const currentGroup0Value = this.#serverData[id].reward.group0;
+            const currentGroup1Value = this.#serverData[id].reward.group1;
+            const currentGroup2Value = this.#serverData[id].reward.group2;
+            const currentGroup3Value = this.#serverData[id].reward.group3;
+
+            let newNextId = this.#serverData[id].reward.nextId;
+            let newNowGroup = this.#serverData[id].reward.nowGroup;
+
+            if (newNowGroup == "group0" && (newGroup0Value > currentGroup0Value || newGroup3Value > currentGroup3Value)) {
+
+                newNextId = 1207959552;
+                newNowGroup = "group2";
+            }
+            else if (newNowGroup == "group1" && (newGroup1Value > currentGroup1Value || newGroup0Value > currentGroup0Value)) {
+
+                newNextId = 1677721600;
+                newNowGroup = "group3";
+            }
+            else if (newNowGroup == "group2" && (newGroup2Value > currentGroup2Value || newGroup1Value > currentGroup1Value)) {
+
+                newNextId = 268435456;
+                newNowGroup = "group0";
+            }
+            else if (newNowGroup == "group3" && (newGroup3Value > currentGroup3Value || newGroup2Value > currentGroup2Value)) {
+
+                newNextId = 738197504;
+                newNowGroup = "group1";
+            }
+
+            const listOfExpired = (await connectionLS.query(`SELECT character_id, amount, refund FROM fiskpay_temporary WHERE  refund < ${(Math.floor(Date.now() / 1000) + 30)} AND server_id = ?`, [id]))[0];
 
             let done = 0;
+            let addedValue = 0;
 
             for (const row of listOfExpired) {
 
-                const charID = row.character_id;
+                const charId = row.character_id;
                 const amount = row.amount;
                 const refund = row.refund;
 
-                temporary = (await connectionGS.query("SELECT " + iid + " FROM items WHERE  " + iitmtyid + " = ? AND loc = 'inventory' AND " + ichid + " = ? LIMIT 1;", [rewardID, charID]))[0];
+                temporary = (await connectionGS.query(`SELECT ${lItemsItemId} FROM items WHERE ${lItemsItemTypeId} = '${lRewardTypeId}' AND loc = 'inventory' AND ${lItemsCharacterId} = '${charId}' LIMIT 1;`))[0];
 
                 if (temporary.length == 1) {
 
-                    const itemID = temporary[0][iid];
+                    const itemId = temporary[0][lItemsItemId];
 
-                    if ((await connectionGS.query("UPDATE items SET " + iitam + " = " + iitam + " + ? WHERE " + iid + " = ? LIMIT 1;", [amount, itemID]))[0].changedRows == 1)
-                        if ((await connectionLS.query("DELETE FROM fiskpay_temporary WHERE server_id = ? AND character_id = ? AND amount = ? AND refund = ? LIMIT 1;", [id, charID, amount, refund]))[0].affectedRows == 1)
+                    if ((await connectionGS.query(`UPDATE items SET ${lItemsItemAmount} = ${lItemsItemAmount} + '${amount}' WHERE ${lItemsItemId} = '${itemId}' LIMIT 1;`))[0].changedRows == 1)
+                        if ((await connectionLS.query(`DELETE FROM fiskpay_temporary WHERE server_id = ? AND character_id = '${charId}' AND amount = '${amount}' AND refund = '${refund}' LIMIT 1;`, [id]))[0].affectedRows == 1)
                             done++;
                 }
                 else {
 
-                    let testID = 2100000000 + Math.floor(Math.random() * 9999900);
-
                     do {
 
-                        testID++;
-                        temporary = (await connectionGS.query("SELECT COUNT(" + iid + ") AS instances FROM items WHERE " + iid + " = ?;", [testID]))[0][0];
+                        temporary = (await connectionGS.query(`SELECT COUNT(${lItemsItemId}) AS instances FROM items WHERE ${lItemsItemId} = '${newNextId}';`))[0][0];
+                        newNextId++;
 
                     } while (temporary.instances > 0)
 
-                    if ((await connectionGS.query("INSERT INTO items (" + ichid + ", " + iid + ", " + iitmtyid + ", " + iitam + ", loc) VALUES (?, ?, ?, ?, 'inventory');", [charID, testID, rewardID, amount]))[0].affectedRows == 1)
-                        if ((await connectionLS.query("DELETE FROM fiskpay_temporary WHERE server_id = ? AND character_id = ? AND amount = ? AND refund = ? LIMIT 1;", [id, charID, amount, refund]))[0].affectedRows == 1)
-                            done++;
-                }
-            };
+                    if ((await connectionGS.query(`INSERT INTO items (${lItemsCharacterId}, ${lItemsItemId}, ${lItemsItemTypeId}, ${lItemsItemAmount}, loc) VALUES (${charId}, ${newNextId} - 1, ${lRewardTypeId}, ${amount}, 'inventory');`))[0].affectedRows == 1) {
+                        
+                        if ((await connectionLS.query(`DELETE FROM fiskpay_temporary WHERE server_id = ? AND character_id = '${charId}' AND amount = '${amount}' AND refund = '${refund}' LIMIT 1;`, [id]))[0].affectedRows == 1) {
 
-            result = (done == nListOfExpired);
+                            done++;
+                            addedValue++;
+                        }
+                    }
+                }
+            }
+
+            if (done == listOfExpired.length) {
+
+                result = true;
+
+                this.#serverData[id].reward.nextId = newNextId;
+                this.#serverData[id].reward.nowGroup = newNowGroup;
+                this.#serverData[id].reward.group0 = ((newNowGroup == "group0") ? (newGroup0Value + addedValue) : (newGroup0Value));
+                this.#serverData[id].reward.group1 = ((newNowGroup == "group1") ? (newGroup1Value + addedValue) : (newGroup1Value));
+                this.#serverData[id].reward.group2 = ((newNowGroup == "group2") ? (newGroup2Value + addedValue) : (newGroup2Value));
+                this.#serverData[id].reward.group3 = ((newNowGroup == "group3") ? (newGroup3Value + addedValue) : (newGroup3Value));
+            }
+
         }
         catch (error) {
 
@@ -929,13 +1200,13 @@ class Connector extends EventEmitter {
 
             if (result === true) {
 
-                await connectionLS.query("COMMIT;");
-                await connectionGS.query("COMMIT;");
+                await connectionLS.query(`COMMIT;`);
+                await connectionGS.query(`COMMIT;`);
             }
             else {
 
-                await connectionLS.query("ROLLBACK;");
-                await connectionGS.query("ROLLBACK;");
+                await connectionLS.query(`ROLLBACK;`);
+                await connectionGS.query(`ROLLBACK;`);
             }
 
             connectionLS.release();

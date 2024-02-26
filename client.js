@@ -31,7 +31,7 @@ process.emit = suppresser;
     console.log(dateTime() + " |                      FiskPay blockchain support for L2J servers                      ");
     console.log(dateTime() + " | ------------------------------------------------------------------------------------ ");
 
-    const tokenSymbol = "USDT";
+    const tokenSymbol = "USDT";// USDT LINK
 
     console.log(dateTime() + " |");
     console.log(dateTime() + " | Fetching remote IP address...");
@@ -316,7 +316,7 @@ process.emit = suppresser;
 
     for (const id of serverIDs) {
 
-        if (!(connectorConfig[id] && connectorConfig[id].rewardId && connectorConfig[id].dbName && connectorConfig[id].dbIPAddress && connectorConfig[id].dbPort && connectorConfig[id].dbUsername && connectorConfig[id].dbPassword && connectorConfig[id].dbTableColumns && connectorConfig[id].dbTableColumns.characters && connectorConfig[id].dbTableColumns.items)) {
+        if (!(connectorConfig[id] && connectorConfig[id].rewardTypeId && connectorConfig[id].dbName && connectorConfig[id].dbIPAddress && connectorConfig[id].dbPort && connectorConfig[id].dbUsername && connectorConfig[id].dbPassword && connectorConfig[id].dbTableColumns && connectorConfig[id].dbTableColumns.characters && connectorConfig[id].dbTableColumns.items)) {
 
             console.log(dateTime() + " | Server `" + id + "` improper configuration");
             process.exit();
