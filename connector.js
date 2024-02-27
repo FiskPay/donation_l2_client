@@ -347,15 +347,15 @@ class Connector extends EventEmitter {
                             (SELECT ids.id WHERE ids.id BETWEEN 1207959552 AND 1677721599) AS group2,
                             (SELECT ids.id WHERE ids.id BETWEEN 1677721600 AND 2147483647) AS group3
                         FROM (
-                            SELECT ${this.#serverData[id].tables.characters.characterId} AS id FROM characters
+                            SELECT ${gsConfig.characters.characterId} AS id FROM characters
                             UNION
-                            SELECT ${this.#serverData[id].tables.items.itemId} AS id FROM items
+                            SELECT ${gsConfig.items.itemId} AS id FROM items
                             UNION
-                            SELECT ${this.#serverData[id].tables.items_on_ground.itemId} AS id FROM items_on_ground
+                            SELECT ${gsConfig.items_on_ground.itemId} AS id FROM items_on_ground
                             UNION
-                            SELECT ${this.#serverData[id].tables.clan_data.clanId} AS id FROM clan_data
+                            SELECT ${gsConfig.clan_data.clanId} AS id FROM clan_data
                             UNION
-                            SELECT ${this.#serverData[id].tables.mods_wedding.weddingId} AS id FROM mods_wedding
+                            SELECT ${gsConfig.mods_wedding.weddingId} AS id FROM mods_wedding
                             ORDER BY id
                         ) AS ids
                     )groups
