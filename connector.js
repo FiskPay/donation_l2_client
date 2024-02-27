@@ -179,33 +179,33 @@ class Connector extends EventEmitter {
 
     #initializeIdData = (id, groups) => {
 
-        let startNextId = (((738197503 - Number(groups.max0)) > 50000) ? (Number(groups.max0) + 1) : (268435456 + 1000000));
-        let startNowGroup = "group0";
+        let startId = (((738197503 - Number(groups.max0)) > 50000) ? (Number(groups.max0)) : (268435456 + 1000000));
+        let startGroup = "group0";
         let minValue = Number(groups.sum0);
 
         if (Number(groups.sum1) < minValue) {
 
-            startNextId = (((1207959551 - Number(groups.max1)) > 50000) ? (Number(groups.max1) + 1) : (738197504 + 1000000));
-            startNowGroup = "group1";
+            startId = ((groups.max1 != null && (1207959551 - Number(groups.max1)) > 50000) ? (Number(groups.max1)) : (738197504 + 1000000));
+            startGroup = "group1";
 
             minValue = Number(groups.sum1);
         }
 
         if (Number(groups.sum2) < minValue) {
 
-            startNextId = (((1677721599 - Number(groups.max2)) > 50000) ? (Number(groups.max2) + 1) : (1207959552 + 1000000));
-            startNowGroup = "group2";
+            startId = ((groups.max2 != null && (1677721599 - Number(groups.max2)) > 50000) ? (Number(groups.max2)) : (1207959552 + 1000000));
+            startGroup = "group2";
 
             minValue = Number(groups.sum2);
         }
 
         if (Number(groups.sum3) < minValue) {
 
-            startNextId = (((2147483647 - Number(groups.max3)) > 50000) ? (Number(groups.max3) + 1) : (1677721600 + 1000000));
-            startNowGroup = "group3";
+            startId = ((groups.max3 != null && (2147483647 - Number(groups.max3)) > 50000) ? (Number(groups.max3)) : (1677721600 + 1000000));
+            startGroup = "group3";
         }
 
-        this.#serverData[id].reward = { "typeId": this.#config[id].rewardTypeId, "nextId": startNextId, "nowGroup": startNowGroup, "group0": Number(groups.sum0), "group1": Number(groups.sum1), "group2": Number(groups.sum2), "group3": Number(groups.sum3) };
+        this.#serverData[id].reward = { "typeId": this.#config[id].rewardTypeId, "nowId": startId, "nowGroup": startGroup, "group0": Number(groups.sum0), "group1": Number(groups.sum1), "group2": Number(groups.sum2), "group3": Number(groups.sum3) };
 
         return true;
     }
@@ -214,22 +214,22 @@ class Connector extends EventEmitter {
 
         if (this.#serverData[id].reward.nowGroup == "group0" && (Number(groups.sum0) > this.#serverData[id].reward.group0 || Number(groups.sum3) > this.#serverData[id].reward.group3)) {
 
-            this.#serverData[id].reward.nextId = (((1677721599 - Number(groups.max2)) > 50000) ? (Number(groups.max2) + 1) : (1207959552 + 1000000));
+            this.#serverData[id].reward.nowId = ((groups.max2 != null && (1677721599 - Number(groups.max2)) > 50000) ? (Number(groups.max2)) : (1207959552 + 1000000));
             this.#serverData[id].reward.nowGroup = "group2";
         }
         else if (this.#serverData[id].reward.nowGroup == "group1" && (Number(groups.sum1) > this.#serverData[id].reward.group1 || Number(groups.sum0) > this.#serverData[id].reward.group0)) {
 
-            this.#serverData[id].reward.nextId = (((2147483647 - Number(groups.max3)) > 50000) ? (Number(groups.max3) + 1) : (1677721600 + 1000000));
+            this.#serverData[id].reward.nowId = ((groups.max3 != null && (2147483647 - Number(groups.max3)) > 50000) ? (Number(groups.max3)) : (1677721600 + 1000000));
             this.#serverData[id].reward.nowGroup = "group3";
         }
         else if (this.#serverData[id].reward.nowGroup == "group2" && (Number(groups.sum2) > this.#serverData[id].reward.group2 || Number(groups.sum1) > this.#serverData[id].reward.group1)) {
 
-            this.#serverData[id].reward.nextId = (((738197503 - Number(groups.max0)) > 50000) ? (Number(groups.max0) + 1) : (268435456 + 1000000));
+            this.#serverData[id].reward.nowId = ((groups.max0 != null && (738197503 - Number(groups.max0)) > 50000) ? (Number(groups.max0)) : (268435456 + 1000000));
             this.#serverData[id].reward.nowGroup = "group0";
         }
         else if (this.#serverData[id].reward.nowGroup == "group3" && (Number(groups.sum3) > this.#serverData[id].reward.group3 || Number(groups.sum2) > this.#serverData[id].reward.group2)) {
 
-            this.#serverData[id].reward.nextId = (((1207959551 - Number(groups.max1)) > 50000) ? (Number(groups.max1) + 1) : (738197504 + 1000000));
+            this.#serverData[id].reward.nowId = ((groups.max1 != null && (1207959551 - Number(groups.max1)) > 50000) ? (Number(groups.max1)) : (738197504 + 1000000));
             this.#serverData[id].reward.nowGroup = "group1";
         }
 
@@ -259,9 +259,9 @@ class Connector extends EventEmitter {
 
     #getNextId = (id) => {
 
-        this.#serverData[id].reward.nextId = ((this.#serverData[id].reward.nextId < 2147483647) ? (this.#serverData[id].reward.nextId + 1) : (268435456));
+        this.#serverData[id].reward.nowId = ((this.#serverData[id].reward.nowId < 2147483647) ? (this.#serverData[id].reward.nowId + 1) : (268435456));
 
-        return (this.#serverData[id].reward.nextId);
+        return (this.#serverData[id].reward.nowId);
     }
 
     CONNECT_SERVER = async (id) => {//C
@@ -1008,8 +1008,8 @@ class Connector extends EventEmitter {
 
                                 if (remainAmount != 0)
                                     result = { "fail": "Token removal failed" };
-                                else if ((await connectionLS.query(`INSERT INTO fiskpay_temporary (server_id, character_id, amount, refund) VALUES (?, ${charId}, ?, ?);`, [id, amount, refund]))[0].affectedRows != 1)
-                                    result = { "data": false };
+                                else if ((await connectionLS.query(`INSERT INTO fiskpay_temporary (server_id, character_id, amount, refund) VALUES (?, ${charId}, ?, ?);`, [id, amount, refund]))[0].affectedRows == 1)
+                                    result = { "data": true };
                             }
                         }
                     }
