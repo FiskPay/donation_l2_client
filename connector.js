@@ -332,14 +332,14 @@ class Connector extends EventEmitter {
 
                     const groups = (await connection.query(`
                     SELECT
-                        MAX(groups.sum0) AS max0,
-                        SUM(IF (groups.sum0 IS NOT NULL, 1, 0)) AS sum0,
-                        MAX(groups.sum1) AS max1,
-                        SUM(IF (groups.sum1 IS NOT NULL, 1, 0)) AS sum1,
-                        MAX(groups.sum2) AS max2,
-                        SUM(IF (groups.sum2 IS NOT NULL, 1, 0)) AS sum2,
-                        MAX(groups.sum3) AS max3,
-                        SUM(IF (groups.sum3 IS NOT NULL, 1, 0)) AS sum3
+                        MAX(groups.group0) AS max0,
+                        SUM(IF (groups.group0 IS NOT NULL, 1, 0)) AS sum0,
+                        MAX(groups.group1) AS max1,
+                        SUM(IF (groups.group1 IS NOT NULL, 1, 0)) AS sum1,
+                        MAX(groups.group2) AS max2,
+                        SUM(IF (groups.group2 IS NOT NULL, 1, 0)) AS sum2,
+                        MAX(groups.group3) AS max3,
+                        SUM(IF (groups.group3 IS NOT NULL, 1, 0)) AS sum3
                     FROM (
                         SELECT
                             (SELECT ids.id WHERE ids.id BETWEEN 268435456 AND 738197503) AS group0,
@@ -358,7 +358,7 @@ class Connector extends EventEmitter {
                             SELECT ${gsConfig.mods_wedding.weddingId} AS id FROM mods_wedding
                             ORDER BY id
                         ) AS ids
-                    )groups
+                    ) AS groups
                     `))[0][0];
 
                     const group0Value = Number(groups.sum0);
@@ -738,14 +738,14 @@ class Connector extends EventEmitter {
 
             const groups = (await connectionGS.query(`
             SELECT
-                MAX(groups.sum0) AS max0,
-                SUM(IF (groups.sum0 IS NOT NULL, 1, 0)) AS sum0,
-                MAX(groups.sum1) AS max1,
-                SUM(IF (groups.sum1 IS NOT NULL, 1, 0)) AS sum1,
-                MAX(groups.sum2) AS max2,
-                SUM(IF (groups.sum2 IS NOT NULL, 1, 0)) AS sum2,
-                MAX(groups.sum3) AS max3,
-                SUM(IF (groups.sum3 IS NOT NULL, 1, 0)) AS sum3
+                MAX(groups.group0) AS max0,
+                SUM(IF (groups.group0 IS NOT NULL, 1, 0)) AS sum0,
+                MAX(groups.group1) AS max1,
+                SUM(IF (groups.group1 IS NOT NULL, 1, 0)) AS sum1,
+                MAX(groups.group2) AS max2,
+                SUM(IF (groups.group2 IS NOT NULL, 1, 0)) AS sum2,
+                MAX(groups.group3) AS max3,
+                SUM(IF (groups.group3 IS NOT NULL, 1, 0)) AS sum3
             FROM (
                 SELECT
                     (SELECT ids.id WHERE ids.id BETWEEN 268435456 AND 738197503) AS group0,
@@ -764,7 +764,7 @@ class Connector extends EventEmitter {
                     SELECT ${this.#serverData[id].tables.mods_wedding.weddingId} AS id FROM mods_wedding
                     ORDER BY id
                 ) AS ids
-            )groups
+            ) AS groups
             `))[0][0];
 
             const newGroup0Value = Number(groups.sum0);
@@ -906,14 +906,14 @@ class Connector extends EventEmitter {
 
             const groups = (await connectionGS.query(`
             SELECT
-                MAX(groups.sum0) AS max0,
-                SUM(IF (groups.sum0 IS NOT NULL, 1, 0)) AS sum0,
-                MAX(groups.sum1) AS max1,
-                SUM(IF (groups.sum1 IS NOT NULL, 1, 0)) AS sum1,
-                MAX(groups.sum2) AS max2,
-                SUM(IF (groups.sum2 IS NOT NULL, 1, 0)) AS sum2,
-                MAX(groups.sum3) AS max3,
-                SUM(IF (groups.sum3 IS NOT NULL, 1, 0)) AS sum3
+                MAX(groups.group0) AS max0,
+                SUM(IF (groups.group0 IS NOT NULL, 1, 0)) AS sum0,
+                MAX(groups.group1) AS max1,
+                SUM(IF (groups.group1 IS NOT NULL, 1, 0)) AS sum1,
+                MAX(groups.group2) AS max2,
+                SUM(IF (groups.group2 IS NOT NULL, 1, 0)) AS sum2,
+                MAX(groups.group3) AS max3,
+                SUM(IF (groups.group3 IS NOT NULL, 1, 0)) AS sum3
             FROM (
                 SELECT
                     (SELECT ids.id WHERE ids.id BETWEEN 268435456 AND 738197503) AS group0,
@@ -932,7 +932,7 @@ class Connector extends EventEmitter {
                     SELECT ${this.#serverData[id].tables.mods_wedding.weddingId} AS id FROM mods_wedding
                     ORDER BY id
                 ) AS ids
-            )groups
+            ) AS groups
             `))[0][0];
 
             const newGroup0Value = Number(groups.sum0);
@@ -1149,14 +1149,14 @@ class Connector extends EventEmitter {
 
             const groups = (await connectionGS.query(`
             SELECT
-                MAX(groups.sum0) AS max0,
-                SUM(IF (groups.sum0 IS NOT NULL, 1, 0)) AS sum0,
-                MAX(groups.sum1) AS max1,
-                SUM(IF (groups.sum1 IS NOT NULL, 1, 0)) AS sum1,
-                MAX(groups.sum2) AS max2,
-                SUM(IF (groups.sum2 IS NOT NULL, 1, 0)) AS sum2,
-                MAX(groups.sum3) AS max3,
-                SUM(IF (groups.sum3 IS NOT NULL, 1, 0)) AS sum3
+                MAX(groups.group0) AS max0,
+                SUM(IF (groups.group0 IS NOT NULL, 1, 0)) AS sum0,
+                MAX(groups.group1) AS max1,
+                SUM(IF (groups.group1 IS NOT NULL, 1, 0)) AS sum1,
+                MAX(groups.group2) AS max2,
+                SUM(IF (groups.group2 IS NOT NULL, 1, 0)) AS sum2,
+                MAX(groups.group3) AS max3,
+                SUM(IF (groups.group3 IS NOT NULL, 1, 0)) AS sum3
             FROM (
                 SELECT
                     (SELECT ids.id WHERE ids.id BETWEEN 268435456 AND 738197503) AS group0,
@@ -1175,7 +1175,7 @@ class Connector extends EventEmitter {
                     SELECT ${this.#serverData[id].tables.mods_wedding.weddingId} AS id FROM mods_wedding
                     ORDER BY id
                 ) AS ids
-            )groups
+            ) AS groups
             `))[0][0];
 
             const newGroup0Value = Number(groups.sum0);
