@@ -811,11 +811,8 @@ class Connector extends EventEmitter {
 
                     if (newNextId < 2147483647)
                         newNextId++;
-                    else {
-
+                    else
                         newNextId = 268435456;
-                        newNowGroup = "group0";
-                    }
                 }
 
                 if ((await connectionGS.query(`INSERT INTO items (${lItemsCharacterId}, ${lItemsItemId}, ${lItemsItemTypeId}, ${lItemsItemAmount}, loc) VALUES (${charId}, ${newNextId}, ${lRewardTypeId}, ?, 'inventory');`, [amount]))[0].affectedRows == 1) {
@@ -827,11 +824,8 @@ class Connector extends EventEmitter {
 
                         if (newNextId < 2147483647)
                             newNextId++;
-                        else {
-
+                        else
                             newNextId = 268435456;
-                            newNowGroup = "group0";
-                        }
                     }
                 }
             }
@@ -1213,11 +1207,8 @@ class Connector extends EventEmitter {
 
                         if (newNextId < 2147483647)
                             newNextId++;
-                        else {
-
+                        else
                             newNextId = 268435456;
-                            newNowGroup = "group0";
-                        }
                     }
 
                     if ((await connectionGS.query(`INSERT INTO items (${lItemsCharacterId}, ${lItemsItemId}, ${lItemsItemTypeId}, ${lItemsItemAmount}, loc) VALUES (${charId}, ${newNextId}, ${lRewardTypeId}, ${amount}, 'inventory');`))[0].affectedRows == 1) {
@@ -1229,11 +1220,8 @@ class Connector extends EventEmitter {
 
                             if (newNextId < 2147483647)
                                 newNextId++;
-                            else {
-
+                            else
                                 newNextId = 268435456;
-                                newNowGroup = "group0";
-                            }
                         }
                     }
                 }
