@@ -331,40 +331,48 @@ class Connector extends EventEmitter {
                 if (checks == 10) {
 
                     const groups = (await connection.query(`
-                    SELECT 
-                        SUM(IF (ids BETWEEN 268435456 AND 738197503, 1, 0)) AS group0,
-                        SUM(IF (ids BETWEEN 738197504 AND 1207959551, 1, 0)) AS group1,
-                        SUM(IF (ids BETWEEN 1207959552 AND 1677721599, 1, 0)) AS group2,
-                        SUM(IF (ids BETWEEN 1677721600 AND 2147483647, 1, 0)) AS group3
+                    SELECT
+                        MAX(groups.sum0) AS max0,
+                        SUM(IF (groups.sum0 IS NOT NULL, 1, 0)) AS sum0,
+                        MAX(groups.sum1) AS max1,
+                        SUM(IF (groups.sum1 IS NOT NULL, 1, 0)) AS sum1,
+                        MAX(groups.sum2) AS max2,
+                        SUM(IF (groups.sum2 IS NOT NULL, 1, 0)) AS sum2,
+                        MAX(groups.sum3) AS max3,
+                        SUM(IF (groups.sum3 IS NOT NULL, 1, 0)) AS sum3
                     FROM (
-                        SELECT id AS ids
+                        SELECT
+                            (SELECT ids.id WHERE ids.id BETWEEN 268435456 AND 738197503) AS group0,
+                            (SELECT ids.id WHERE ids.id BETWEEN 738197504 AND 1207959551) AS group1,
+                            (SELECT ids.id WHERE ids.id BETWEEN 1207959552 AND 1677721599) AS group2,
+                            (SELECT ids.id WHERE ids.id BETWEEN 1677721600 AND 2147483647) AS group3
                         FROM (
-                            SELECT ${gsConfig.characters.characterId} AS id FROM characters
+                            SELECT ${this.#serverData[id].tables.characters.characterId} AS id FROM characters
                             UNION
-                            SELECT ${gsConfig.items.itemId} AS id FROM items
+                            SELECT ${this.#serverData[id].tables.items.itemId} AS id FROM items
                             UNION
-                            SELECT ${gsConfig.items_on_ground.itemId} AS id FROM items_on_ground
+                            SELECT ${this.#serverData[id].tables.items_on_ground.itemId} AS id FROM items_on_ground
                             UNION
-                            SELECT ${gsConfig.clan_data.clanId} AS id FROM clan_data
+                            SELECT ${this.#serverData[id].tables.clan_data.clanId} AS id FROM clan_data
                             UNION
-                            SELECT ${gsConfig.mods_wedding.weddingId} AS id FROM mods_wedding
-                        )aa
-                        ORDER BY ids ASC
-                    )ab                   
+                            SELECT ${this.#serverData[id].tables.mods_wedding.weddingId} AS id FROM mods_wedding
+                            ORDER BY id
+                        ) AS ids
+                    )groups
                     `))[0][0];
 
-                    const group0Value = Number(groups.group0);
-                    const group1Value = Number(groups.group1);
-                    const group2Value = Number(groups.group2);
-                    const group3Value = Number(groups.group3);
+                    const group0Value = Number(groups.sum0);
+                    const group1Value = Number(groups.sum1);
+                    const group2Value = Number(groups.sum2);
+                    const group3Value = Number(groups.sum3);
 
-                    let startNextId = 268435456;
+                    let startNextId = (((738197503 - Number(groups.max0)) > 5000) ? (Number(groups.max0) + 1) : (268435456));;
                     let startNowGroup = "group0";
                     let minValue = group0Value;
 
                     if (group1Value < minValue) {
 
-                        startNextId = 738197504;
+                        startNextId = (((1207959551 - Number(groups.max1)) > 5000) ? (Number(groups.max1) + 1) : (738197504));
                         startNowGroup = "group1";
 
                         minValue = group1Value;
@@ -372,7 +380,7 @@ class Connector extends EventEmitter {
 
                     if (group2Value < minValue) {
 
-                        startNextId = 1207959552;
+                        startNextId = (((1677721599 - Number(groups.max2)) > 5000) ? (Number(groups.max2) + 1) : (1207959552));
                         startNowGroup = "group2";
 
                         minValue = group2Value;
@@ -380,7 +388,7 @@ class Connector extends EventEmitter {
 
                     if (group3Value < minValue) {
 
-                        startNextId = 1677721600;
+                        startNextId = (((2147483647 - Number(groups.max3)) > 5000) ? (Number(groups.max3) + 1) : (1677721600));
                         startNowGroup = "group3";
                     }
 
@@ -729,13 +737,21 @@ class Connector extends EventEmitter {
             await connectionGS.query(`START TRANSACTION;`);
 
             const groups = (await connectionGS.query(`
-            SELECT 
-                SUM(IF (ids BETWEEN 268435456 AND 738197503, 1, 0)) AS group0,
-                SUM(IF (ids BETWEEN 738197504 AND 1207959551, 1, 0)) AS group1,
-                SUM(IF (ids BETWEEN 1207959552 AND 1677721599, 1, 0)) AS group2,
-                SUM(IF (ids BETWEEN 1677721600 AND 2147483647, 1, 0)) AS group3
+            SELECT
+                MAX(groups.sum0) AS max0,
+                SUM(IF (groups.sum0 IS NOT NULL, 1, 0)) AS sum0,
+                MAX(groups.sum1) AS max1,
+                SUM(IF (groups.sum1 IS NOT NULL, 1, 0)) AS sum1,
+                MAX(groups.sum2) AS max2,
+                SUM(IF (groups.sum2 IS NOT NULL, 1, 0)) AS sum2,
+                MAX(groups.sum3) AS max3,
+                SUM(IF (groups.sum3 IS NOT NULL, 1, 0)) AS sum3
             FROM (
-                SELECT id AS ids
+                SELECT
+                    (SELECT ids.id WHERE ids.id BETWEEN 268435456 AND 738197503) AS group0,
+                    (SELECT ids.id WHERE ids.id BETWEEN 738197504 AND 1207959551) AS group1,
+                    (SELECT ids.id WHERE ids.id BETWEEN 1207959552 AND 1677721599) AS group2,
+                    (SELECT ids.id WHERE ids.id BETWEEN 1677721600 AND 2147483647) AS group3
                 FROM (
                     SELECT ${this.#serverData[id].tables.characters.characterId} AS id FROM characters
                     UNION
@@ -746,15 +762,15 @@ class Connector extends EventEmitter {
                     SELECT ${this.#serverData[id].tables.clan_data.clanId} AS id FROM clan_data
                     UNION
                     SELECT ${this.#serverData[id].tables.mods_wedding.weddingId} AS id FROM mods_wedding
-                )aa
-                ORDER BY ids ASC
-            )ab                   
+                    ORDER BY id
+                ) AS ids
+            )groups
             `))[0][0];
 
-            const newGroup0Value = Number(groups.group0);
-            const newGroup1Value = Number(groups.group1);
-            const newGroup2Value = Number(groups.group2);
-            const newGroup3Value = Number(groups.group3);
+            const newGroup0Value = Number(groups.sum0);
+            const newGroup1Value = Number(groups.sum1);
+            const newGroup2Value = Number(groups.sum2);
+            const newGroup3Value = Number(groups.sum3);
 
             const currentGroup0Value = this.#serverData[id].reward.group0;
             const currentGroup1Value = this.#serverData[id].reward.group1;
@@ -767,22 +783,22 @@ class Connector extends EventEmitter {
 
             if (newNowGroup == "group0" && (newGroup0Value > currentGroup0Value || newGroup3Value > currentGroup3Value)) {
 
-                newNextId = 1207959552;
+                newNextId = (((1677721599 - Number(groups.max2)) > 5000) ? (Number(groups.max2) + 1) : (1207959552));
                 newNowGroup = "group2";
             }
             else if (newNowGroup == "group1" && (newGroup1Value > currentGroup1Value || newGroup0Value > currentGroup0Value)) {
 
-                newNextId = 1677721600;
+                newNextId = (((2147483647 - Number(groups.max3)) > 5000) ? (Number(groups.max3) + 1) : (1677721600));
                 newNowGroup = "group3";
             }
             else if (newNowGroup == "group2" && (newGroup2Value > currentGroup2Value || newGroup1Value > currentGroup1Value)) {
 
-                newNextId = 268435456;
+                newNextId = (((738197503 - Number(groups.max0)) > 5000) ? (Number(groups.max0) + 1) : (268435456));
                 newNowGroup = "group0";
             }
             else if (newNowGroup == "group3" && (newGroup3Value > currentGroup3Value || newGroup2Value > currentGroup2Value)) {
 
-                newNextId = 738197504;
+                newNextId = (((1207959551 - Number(groups.max1)) > 5000) ? (Number(groups.max1) + 1) : (738197504));
                 newNowGroup = "group1";
             }
 
@@ -889,13 +905,21 @@ class Connector extends EventEmitter {
             await connectionGS.query(`START TRANSACTION;`);
 
             const groups = (await connectionGS.query(`
-            SELECT 
-                SUM(IF (ids BETWEEN 268435456 AND 738197503, 1, 0)) AS group0,
-                SUM(IF (ids BETWEEN 738197504 AND 1207959551, 1, 0)) AS group1,
-                SUM(IF (ids BETWEEN 1207959552 AND 1677721599, 1, 0)) AS group2,
-                SUM(IF (ids BETWEEN 1677721600 AND 2147483647, 1, 0)) AS group3
+            SELECT
+                MAX(groups.sum0) AS max0,
+                SUM(IF (groups.sum0 IS NOT NULL, 1, 0)) AS sum0,
+                MAX(groups.sum1) AS max1,
+                SUM(IF (groups.sum1 IS NOT NULL, 1, 0)) AS sum1,
+                MAX(groups.sum2) AS max2,
+                SUM(IF (groups.sum2 IS NOT NULL, 1, 0)) AS sum2,
+                MAX(groups.sum3) AS max3,
+                SUM(IF (groups.sum3 IS NOT NULL, 1, 0)) AS sum3
             FROM (
-                SELECT id AS ids
+                SELECT
+                    (SELECT ids.id WHERE ids.id BETWEEN 268435456 AND 738197503) AS group0,
+                    (SELECT ids.id WHERE ids.id BETWEEN 738197504 AND 1207959551) AS group1,
+                    (SELECT ids.id WHERE ids.id BETWEEN 1207959552 AND 1677721599) AS group2,
+                    (SELECT ids.id WHERE ids.id BETWEEN 1677721600 AND 2147483647) AS group3
                 FROM (
                     SELECT ${this.#serverData[id].tables.characters.characterId} AS id FROM characters
                     UNION
@@ -906,15 +930,15 @@ class Connector extends EventEmitter {
                     SELECT ${this.#serverData[id].tables.clan_data.clanId} AS id FROM clan_data
                     UNION
                     SELECT ${this.#serverData[id].tables.mods_wedding.weddingId} AS id FROM mods_wedding
-                )aa
-                ORDER BY ids ASC
-            )ab                   
+                    ORDER BY id
+                ) AS ids
+            )groups
             `))[0][0];
 
-            const newGroup0Value = Number(groups.group0);
-            const newGroup1Value = Number(groups.group1);
-            const newGroup2Value = Number(groups.group2);
-            const newGroup3Value = Number(groups.group3);
+            const newGroup0Value = Number(groups.sum0);
+            const newGroup1Value = Number(groups.sum1);
+            const newGroup2Value = Number(groups.sum2);
+            const newGroup3Value = Number(groups.sum3);
 
             const currentGroup0Value = this.#serverData[id].reward.group0;
             const currentGroup1Value = this.#serverData[id].reward.group1;
@@ -927,22 +951,22 @@ class Connector extends EventEmitter {
 
             if (newNowGroup == "group0" && (newGroup0Value > currentGroup0Value || newGroup3Value > currentGroup3Value)) {
 
-                newNextId = 1207959552;
+                newNextId = (((1677721599 - Number(groups.max2)) > 5000) ? (Number(groups.max2) + 1) : (1207959552));
                 newNowGroup = "group2";
             }
             else if (newNowGroup == "group1" && (newGroup1Value > currentGroup1Value || newGroup0Value > currentGroup0Value)) {
 
-                newNextId = 1677721600;
+                newNextId = (((2147483647 - Number(groups.max3)) > 5000) ? (Number(groups.max3) + 1) : (1677721600));
                 newNowGroup = "group3";
             }
             else if (newNowGroup == "group2" && (newGroup2Value > currentGroup2Value || newGroup1Value > currentGroup1Value)) {
 
-                newNextId = 268435456;
+                newNextId = (((738197503 - Number(groups.max0)) > 5000) ? (Number(groups.max0) + 1) : (268435456));
                 newNowGroup = "group0";
             }
             else if (newNowGroup == "group3" && (newGroup3Value > currentGroup3Value || newGroup2Value > currentGroup2Value)) {
 
-                newNextId = 738197504;
+                newNextId = (((1207959551 - Number(groups.max1)) > 5000) ? (Number(groups.max1) + 1) : (738197504));
                 newNowGroup = "group1";
             }
 
@@ -1124,13 +1148,21 @@ class Connector extends EventEmitter {
             await connectionGS.query(`START TRANSACTION;`);
 
             const groups = (await connectionGS.query(`
-            SELECT 
-                SUM(IF (ids BETWEEN 268435456 AND 738197503, 1, 0)) AS group0,
-                SUM(IF (ids BETWEEN 738197504 AND 1207959551, 1, 0)) AS group1,
-                SUM(IF (ids BETWEEN 1207959552 AND 1677721599, 1, 0)) AS group2,
-                SUM(IF (ids BETWEEN 1677721600 AND 2147483647, 1, 0)) AS group3
+            SELECT
+                MAX(groups.sum0) AS max0,
+                SUM(IF (groups.sum0 IS NOT NULL, 1, 0)) AS sum0,
+                MAX(groups.sum1) AS max1,
+                SUM(IF (groups.sum1 IS NOT NULL, 1, 0)) AS sum1,
+                MAX(groups.sum2) AS max2,
+                SUM(IF (groups.sum2 IS NOT NULL, 1, 0)) AS sum2,
+                MAX(groups.sum3) AS max3,
+                SUM(IF (groups.sum3 IS NOT NULL, 1, 0)) AS sum3
             FROM (
-                SELECT id AS ids
+                SELECT
+                    (SELECT ids.id WHERE ids.id BETWEEN 268435456 AND 738197503) AS group0,
+                    (SELECT ids.id WHERE ids.id BETWEEN 738197504 AND 1207959551) AS group1,
+                    (SELECT ids.id WHERE ids.id BETWEEN 1207959552 AND 1677721599) AS group2,
+                    (SELECT ids.id WHERE ids.id BETWEEN 1677721600 AND 2147483647) AS group3
                 FROM (
                     SELECT ${this.#serverData[id].tables.characters.characterId} AS id FROM characters
                     UNION
@@ -1141,15 +1173,15 @@ class Connector extends EventEmitter {
                     SELECT ${this.#serverData[id].tables.clan_data.clanId} AS id FROM clan_data
                     UNION
                     SELECT ${this.#serverData[id].tables.mods_wedding.weddingId} AS id FROM mods_wedding
-                )aa
-                ORDER BY ids ASC
-            )ab                   
+                    ORDER BY id
+                ) AS ids
+            )groups
             `))[0][0];
 
-            const newGroup0Value = Number(groups.group0);
-            const newGroup1Value = Number(groups.group1);
-            const newGroup2Value = Number(groups.group2);
-            const newGroup3Value = Number(groups.group3);
+            const newGroup0Value = Number(groups.sum0);
+            const newGroup1Value = Number(groups.sum1);
+            const newGroup2Value = Number(groups.sum2);
+            const newGroup3Value = Number(groups.sum3);
 
             const currentGroup0Value = this.#serverData[id].reward.group0;
             const currentGroup1Value = this.#serverData[id].reward.group1;
@@ -1162,22 +1194,22 @@ class Connector extends EventEmitter {
 
             if (newNowGroup == "group0" && (newGroup0Value > currentGroup0Value || newGroup3Value > currentGroup3Value)) {
 
-                newNextId = 1207959552;
+                newNextId = (((1677721599 - Number(groups.max2)) > 5000) ? (Number(groups.max2) + 1) : (1207959552));
                 newNowGroup = "group2";
             }
             else if (newNowGroup == "group1" && (newGroup1Value > currentGroup1Value || newGroup0Value > currentGroup0Value)) {
 
-                newNextId = 1677721600;
+                newNextId = (((2147483647 - Number(groups.max3)) > 5000) ? (Number(groups.max3) + 1) : (1677721600));
                 newNowGroup = "group3";
             }
             else if (newNowGroup == "group2" && (newGroup2Value > currentGroup2Value || newGroup1Value > currentGroup1Value)) {
 
-                newNextId = 268435456;
+                newNextId = (((738197503 - Number(groups.max0)) > 5000) ? (Number(groups.max0) + 1) : (268435456));
                 newNowGroup = "group0";
             }
             else if (newNowGroup == "group3" && (newGroup3Value > currentGroup3Value || newGroup2Value > currentGroup2Value)) {
 
-                newNextId = 738197504;
+                newNextId = (((1207959551 - Number(groups.max1)) > 5000) ? (Number(groups.max1) + 1) : (738197504));
                 newNowGroup = "group1";
             }
 
