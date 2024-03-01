@@ -69,18 +69,16 @@ process.emit = suppresser;
                 if (id != "ls") {
 
                     let refund = 0;
+                    let balance = 0
+                    let ids = 0;
 
-                    serversStatus[id].i = setInterval(async () => {
+                    serversStatus[id].i = setInterval( () => {
 
-                        if (refund > 20) {
+                        (refund >= 3) ? (async () => { refund = 0; await serverConnector.REFUND_CHARACTERS(id); }) : (refund++);
+                        (balance >= 1) ? (async () => { balance = 0; await serverConnector.UPDATE_GAMESERVER_BALANCE(id); }) : (balance++);
+                        (ids >= 6) ? (async () => { ids = 0; await serverConnector.UPDATE_IDS(id); }) : (ids++);
 
-                            refund = -1;
-                            await serverConnector.REFUND_CHARACTERS(id);
-                        }
-
-                        refund++;
-                        serverConnector.UPDATE_GAMESERVER_BALANCE(id);
-                    }, 5000);
+                    }, 10000);
                 }
 
                 console.log(dateTime() + " | Server `" + id + "` database connection established");
@@ -311,8 +309,11 @@ process.emit = suppresser;
 
     const serverIDs = await serverConnector.GET_IDS();
 
-    if (!(typeof serverIDs === "object" && Array.isArray(serverIDs)))
+    if (serverIDs === false){
+
+        console.log(dateTime() + " | Could not get the gameserver id list from loginserver database");
         process.exit();
+    }
 
     for (const id of serverIDs) {
 

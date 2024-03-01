@@ -177,7 +177,43 @@ class Connector extends EventEmitter {
         this.#remoteIPAddress = remoteIPAddress;
     }
 
-    #initializeIdData = (id, groups) => {
+    #idsStatement = (id) => {
+
+        return (`
+                SELECT
+                    MAX(groups.group0) AS max0,
+                    SUM(IF (groups.group0 IS NOT NULL, 1, 0)) AS sum0,
+                    MAX(groups.group1) AS max1,
+                    SUM(IF (groups.group1 IS NOT NULL, 1, 0)) AS sum1,
+                    MAX(groups.group2) AS max2,
+                    SUM(IF (groups.group2 IS NOT NULL, 1, 0)) AS sum2,
+                    MAX(groups.group3) AS max3,
+                    SUM(IF (groups.group3 IS NOT NULL, 1, 0)) AS sum3
+                FROM (
+                    SELECT
+                        (SELECT ids.id WHERE ids.id BETWEEN 268435456 AND 738197503) AS group0,
+                        (SELECT ids.id WHERE ids.id BETWEEN 738197504 AND 1207959551) AS group1,
+                        (SELECT ids.id WHERE ids.id BETWEEN 1207959552 AND 1677721599) AS group2,
+                        (SELECT ids.id WHERE ids.id BETWEEN 1677721600 AND 2147483647) AS group3
+                    FROM (
+                        SELECT ${this.#serverData[id].tables.characters.characterId} AS id FROM characters
+                        UNION
+                        SELECT ${this.#serverData[id].tables.items.itemId} AS id FROM items
+                        UNION
+                        SELECT ${this.#serverData[id].tables.items_on_ground.itemId} AS id FROM items_on_ground
+                        UNION
+                        SELECT ${this.#serverData[id].tables.clan_data.clanId} AS id FROM clan_data
+                        UNION
+                        SELECT ${this.#serverData[id].tables.mods_wedding.weddingId} AS id FROM mods_wedding
+                        ORDER BY id
+                    ) AS ids
+                ) AS groups
+                `);
+    }
+
+    #initializeIds = async (id, connection) => {
+
+        const groups = (await connection.query(this.#idsStatement(id)))[0][0];
 
         let startId = (((738197503 - Number(groups.max0)) > 50000) ? (Number(groups.max0)) : (268435456 + 1000000));
         let startGroup = "group0";
@@ -205,12 +241,12 @@ class Connector extends EventEmitter {
             startGroup = "group3";
         }
 
-        this.#serverData[id].reward = { "typeId": this.#config[id].rewardTypeId, "nowId": startId, "nowGroup": startGroup, "group0": Number(groups.sum0), "group1": Number(groups.sum1), "group2": Number(groups.sum2), "group3": Number(groups.sum3) };
-
-        return true;
+        return ({ "typeId": this.#config[id].rewardTypeId, "nowId": startId, "nowGroup": startGroup, "group0": Number(groups.sum0), "group1": Number(groups.sum1), "group2": Number(groups.sum2), "group3": Number(groups.sum3) });
     }
 
-    #updateIdData = (id, groups) => {
+    #updateIds = async (id, connection) => {
+
+        const groups = (await connection.query(this.#idsStatement(id)))[0][0];
 
         if (this.#serverData[id].reward.nowGroup == "group0" && (Number(groups.sum0) > this.#serverData[id].reward.group0 || Number(groups.sum3) > this.#serverData[id].reward.group3)) {
 
@@ -236,7 +272,7 @@ class Connector extends EventEmitter {
         return true;
     }
 
-    #increaseIdCountBy = (id, amount) => {
+    #increaseIdCount = (id, amount) => {
 
 
         this.#serverData[id].reward.group0 += ((this.#serverData[id].reward.nowGroup == "group0") ? (amount) : (0));
@@ -247,7 +283,7 @@ class Connector extends EventEmitter {
         return true;
     }
 
-    #decreaseIdCountBy = (id, amount) => {
+    #decreaseIdCount = (id, amount) => {
 
         this.#serverData[id].reward.group0 -= ((this.#serverData[id].reward.nowGroup == "group0") ? (amount) : (0));
         this.#serverData[id].reward.group1 -= ((this.#serverData[id].reward.nowGroup == "group1") ? (amount) : (0));
@@ -259,9 +295,7 @@ class Connector extends EventEmitter {
 
     #getNextId = (id) => {
 
-        this.#serverData[id].reward.nowId = ((this.#serverData[id].reward.nowId < 2147483647) ? (this.#serverData[id].reward.nowId + 1) : (268435456));
-
-        return (this.#serverData[id].reward.nowId);
+        return (this.#serverData[id].reward.nowId = ((this.#serverData[id].reward.nowId < 2147483647) ? (this.#serverData[id].reward.nowId + 1) : (268435456)));
     }
 
     CONNECT_SERVER = async (id) => {//C
@@ -416,39 +450,8 @@ class Connector extends EventEmitter {
 
                 if (checks == 10) {
 
-                    const groups = (await connection.query(`
-                    SELECT
-                        MAX(groups.group0) AS max0,
-                        SUM(IF (groups.group0 IS NOT NULL, 1, 0)) AS sum0,
-                        MAX(groups.group1) AS max1,
-                        SUM(IF (groups.group1 IS NOT NULL, 1, 0)) AS sum1,
-                        MAX(groups.group2) AS max2,
-                        SUM(IF (groups.group2 IS NOT NULL, 1, 0)) AS sum2,
-                        MAX(groups.group3) AS max3,
-                        SUM(IF (groups.group3 IS NOT NULL, 1, 0)) AS sum3
-                    FROM (
-                        SELECT
-                            (SELECT ids.id WHERE ids.id BETWEEN 268435456 AND 738197503) AS group0,
-                            (SELECT ids.id WHERE ids.id BETWEEN 738197504 AND 1207959551) AS group1,
-                            (SELECT ids.id WHERE ids.id BETWEEN 1207959552 AND 1677721599) AS group2,
-                            (SELECT ids.id WHERE ids.id BETWEEN 1677721600 AND 2147483647) AS group3
-                        FROM (
-                            SELECT ${gsConfig.characters.characterId} AS id FROM characters
-                            UNION
-                            SELECT ${gsConfig.items.itemId} AS id FROM items
-                            UNION
-                            SELECT ${gsConfig.items_on_ground.itemId} AS id FROM items_on_ground
-                            UNION
-                            SELECT ${gsConfig.clan_data.clanId} AS id FROM clan_data
-                            UNION
-                            SELECT ${gsConfig.mods_wedding.weddingId} AS id FROM mods_wedding
-                            ORDER BY id
-                        ) AS ids
-                    ) AS groups
-                    `))[0][0];
-
-                    this.#initializeIdData(id, groups);
                     this.#serverData[id].tables = gsConfig;
+                    this.#serverData[id].reward = await this.#initializeIds(id, connection);
 
                     result = true;
                 }
@@ -469,18 +472,18 @@ class Connector extends EventEmitter {
     GET_IDS = async () => {//C
 
         const connection = await this.#connections["ls"].getConnection();
-        const lGameserversGameserverId = this.#serverData["ls"].tables.gameservers.gameserverId;
 
-        let result;
+        let result = false;
         let temporary;
 
         try {
 
-            temporary = (await connection.query(`SELECT ${lGameserversGameserverId} FROM gameservers;`))[0];
+            temporary = (await connection.query(`SELECT ${this.#serverData["ls"].tables.gameservers.gameserverId} FROM gameservers;`))[0];
             result = temporary.map(key => key[lGameserversGameserverId])
         }
         catch (error) {
 
+            result = false;
             this.emit("error", error);
         }
         finally {
@@ -744,6 +747,28 @@ class Connector extends EventEmitter {
         }
     }
 
+    UPDATE_IDS = async (id) => {//C
+
+        const connection = await this.#connections[id].getConnection();
+
+        let result = false;
+
+        try {
+
+            result = await this.#updateIds(id, connection);
+        }
+        catch (error) {
+
+            result = false;
+            this.emit("error", error);
+        }
+        finally {
+
+            connection.release();
+            return result;
+        }
+    }
+
     CHECK_IF_CHARACTER_OFFLINE = async (id, character) => {//P
 
         const connection = await this.#connections[id].getConnection();
@@ -793,39 +818,6 @@ class Connector extends EventEmitter {
             await connectionLS.query(`START TRANSACTION;`);
             await connectionGS.query(`START TRANSACTION;`);
 
-            const groups = (await connectionGS.query(`
-            SELECT
-                MAX(groups.group0) AS max0,
-                SUM(IF (groups.group0 IS NOT NULL, 1, 0)) AS sum0,
-                MAX(groups.group1) AS max1,
-                SUM(IF (groups.group1 IS NOT NULL, 1, 0)) AS sum1,
-                MAX(groups.group2) AS max2,
-                SUM(IF (groups.group2 IS NOT NULL, 1, 0)) AS sum2,
-                MAX(groups.group3) AS max3,
-                SUM(IF (groups.group3 IS NOT NULL, 1, 0)) AS sum3
-            FROM (
-                SELECT
-                    (SELECT ids.id WHERE ids.id BETWEEN 268435456 AND 738197503) AS group0,
-                    (SELECT ids.id WHERE ids.id BETWEEN 738197504 AND 1207959551) AS group1,
-                    (SELECT ids.id WHERE ids.id BETWEEN 1207959552 AND 1677721599) AS group2,
-                    (SELECT ids.id WHERE ids.id BETWEEN 1677721600 AND 2147483647) AS group3
-                FROM (
-                    SELECT ${this.#serverData[id].tables.characters.characterId} AS id FROM characters
-                    UNION
-                    SELECT ${this.#serverData[id].tables.items.itemId} AS id FROM items
-                    UNION
-                    SELECT ${this.#serverData[id].tables.items_on_ground.itemId} AS id FROM items_on_ground
-                    UNION
-                    SELECT ${this.#serverData[id].tables.clan_data.clanId} AS id FROM clan_data
-                    UNION
-                    SELECT ${this.#serverData[id].tables.mods_wedding.weddingId} AS id FROM mods_wedding
-                    ORDER BY id
-                ) AS ids
-            ) AS groups
-            `))[0][0];
-
-            this.#updateIdData(id, groups);
-
             temporary = (await connectionGS.query(`SELECT ${lCharactersCharacterId} FROM characters WHERE ${lCharactersCharacterName} = ? LIMIT 1;`, [character]))[0][0];
 
             const charId = temporary[lCharactersCharacterId];
@@ -869,7 +861,7 @@ class Connector extends EventEmitter {
 
             if (result === true) {
 
-                this.#increaseIdCountBy(id, addedIds);
+                this.#increaseIdCount(id, addedIds);
 
                 await connectionLS.query(`COMMIT;`);
                 await connectionGS.query(`COMMIT;`);
@@ -912,39 +904,6 @@ class Connector extends EventEmitter {
             await connectionGS.query(`SET autocommit = 0;`);
             await connectionLS.query(`START TRANSACTION;`);
             await connectionGS.query(`START TRANSACTION;`);
-
-            const groups = (await connectionGS.query(`
-            SELECT
-                MAX(groups.group0) AS max0,
-                SUM(IF (groups.group0 IS NOT NULL, 1, 0)) AS sum0,
-                MAX(groups.group1) AS max1,
-                SUM(IF (groups.group1 IS NOT NULL, 1, 0)) AS sum1,
-                MAX(groups.group2) AS max2,
-                SUM(IF (groups.group2 IS NOT NULL, 1, 0)) AS sum2,
-                MAX(groups.group3) AS max3,
-                SUM(IF (groups.group3 IS NOT NULL, 1, 0)) AS sum3
-            FROM (
-                SELECT
-                    (SELECT ids.id WHERE ids.id BETWEEN 268435456 AND 738197503) AS group0,
-                    (SELECT ids.id WHERE ids.id BETWEEN 738197504 AND 1207959551) AS group1,
-                    (SELECT ids.id WHERE ids.id BETWEEN 1207959552 AND 1677721599) AS group2,
-                    (SELECT ids.id WHERE ids.id BETWEEN 1677721600 AND 2147483647) AS group3
-                FROM (
-                    SELECT ${this.#serverData[id].tables.characters.characterId} AS id FROM characters
-                    UNION
-                    SELECT ${this.#serverData[id].tables.items.itemId} AS id FROM items
-                    UNION
-                    SELECT ${this.#serverData[id].tables.items_on_ground.itemId} AS id FROM items_on_ground
-                    UNION
-                    SELECT ${this.#serverData[id].tables.clan_data.clanId} AS id FROM clan_data
-                    UNION
-                    SELECT ${this.#serverData[id].tables.mods_wedding.weddingId} AS id FROM mods_wedding
-                    ORDER BY id
-                ) AS ids
-            ) AS groups
-            `))[0][0];
-
-            this.#updateIdData(id, groups);
 
             temporary = (await connectionGS.query(`SELECT ${lCharactersCharacterId}, ${lCharactersAccountUsername} FROM characters WHERE ${lCharactersCharacterName} = ? LIMIT 1;`, [character]))[0];
 
@@ -1026,7 +985,7 @@ class Connector extends EventEmitter {
 
             if (result.data === true) {
 
-                this.#decreaseIdCountBy(id, removedIds);
+                this.#decreaseIdCount(id, removedIds);
 
                 await connectionLS.query(`COMMIT;`);
                 await connectionGS.query(`COMMIT;`);
@@ -1116,39 +1075,6 @@ class Connector extends EventEmitter {
             await connectionLS.query(`START TRANSACTION;`);
             await connectionGS.query(`START TRANSACTION;`);
 
-            const groups = (await connectionGS.query(`
-            SELECT
-                MAX(groups.group0) AS max0,
-                SUM(IF (groups.group0 IS NOT NULL, 1, 0)) AS sum0,
-                MAX(groups.group1) AS max1,
-                SUM(IF (groups.group1 IS NOT NULL, 1, 0)) AS sum1,
-                MAX(groups.group2) AS max2,
-                SUM(IF (groups.group2 IS NOT NULL, 1, 0)) AS sum2,
-                MAX(groups.group3) AS max3,
-                SUM(IF (groups.group3 IS NOT NULL, 1, 0)) AS sum3
-            FROM (
-                SELECT
-                    (SELECT ids.id WHERE ids.id BETWEEN 268435456 AND 738197503) AS group0,
-                    (SELECT ids.id WHERE ids.id BETWEEN 738197504 AND 1207959551) AS group1,
-                    (SELECT ids.id WHERE ids.id BETWEEN 1207959552 AND 1677721599) AS group2,
-                    (SELECT ids.id WHERE ids.id BETWEEN 1677721600 AND 2147483647) AS group3
-                FROM (
-                    SELECT ${this.#serverData[id].tables.characters.characterId} AS id FROM characters
-                    UNION
-                    SELECT ${this.#serverData[id].tables.items.itemId} AS id FROM items
-                    UNION
-                    SELECT ${this.#serverData[id].tables.items_on_ground.itemId} AS id FROM items_on_ground
-                    UNION
-                    SELECT ${this.#serverData[id].tables.clan_data.clanId} AS id FROM clan_data
-                    UNION
-                    SELECT ${this.#serverData[id].tables.mods_wedding.weddingId} AS id FROM mods_wedding
-                    ORDER BY id
-                ) AS ids
-            ) AS groups
-            `))[0][0];
-
-            this.#updateIdData(id, groups);
-
             const listOfExpired = (await connectionLS.query(`SELECT character_id, amount, refund FROM fiskpay_temporary WHERE  refund < ${(Math.floor(Date.now() / 1000) + 30)} AND server_id = ?`, [id]))[0];
 
             let processed = 0;
@@ -1198,7 +1124,7 @@ class Connector extends EventEmitter {
 
             if (result === true) {
 
-                this.#increaseIdCountBy(id, addedIds);
+                this.#increaseIdCount(id, addedIds);
 
                 await connectionLS.query(`COMMIT;`);
                 await connectionGS.query(`COMMIT;`);
