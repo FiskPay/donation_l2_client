@@ -154,7 +154,6 @@ const validatePassword = (test, target) => {
         }
 
         return false;
-
     }
     else {
 
@@ -312,8 +311,8 @@ class Connector extends EventEmitter {
                     "user": this.#config[id].dbUsername,
                     "password": this.#config[id].dbPassword,
                     "waitForConnections": true,
-                    "connectionLimit": ((id == "ls") ? (12 + 1) : (3 + 1)),
-                    "maxIdle": ((id == "ls") ? (4) : (1)),
+                    "connectionLimit": ((id == "ls") ? (12 + 1) : (4 + 1)),
+                    "maxIdle": ((id == "ls") ? (4) : (2)),
                     "idleTimeout": 60000,
                     "queueLimit": 0,
                     "enableKeepAlive": true,
@@ -472,13 +471,14 @@ class Connector extends EventEmitter {
     GET_IDS = async () => {//C
 
         const connection = await this.#connections["ls"].getConnection();
+        const lGameserversGameserverId = this.#serverData["ls"].tables.gameservers.gameserverId;
 
         let result = false;
         let temporary;
 
         try {
 
-            temporary = (await connection.query(`SELECT ${this.#serverData["ls"].tables.gameservers.gameserverId} FROM gameservers;`))[0];
+            temporary = (await connection.query(`SELECT ${lGameserversGameserverId} FROM gameservers;`))[0];
             result = temporary.map(key => key[lGameserversGameserverId])
         }
         catch (error) {
@@ -905,7 +905,7 @@ class Connector extends EventEmitter {
             await connectionLS.query(`START TRANSACTION;`);
             await connectionGS.query(`START TRANSACTION;`);
 
-            temporary = (await connectionGS.query(`SELECT ${lCharactersCharacterId}, ${lCharactersAccountUsername} FROM characters WHERE ${lCharactersCharacterName} = ? LIMIT 1;`, [character]))[0];
+            temporary = (await connectionGS.query(`SELECT ${lCharactersCharacterId}, ${lCharactersAccountUsername}, online FROM characters WHERE ${lCharactersCharacterName} = ? LIMIT 1;`, [character]))[0];
 
             if (temporary.length != 1)
                 result = { "fail": "Character " + character + " data not found" };
@@ -913,8 +913,11 @@ class Connector extends EventEmitter {
 
                 const charId = temporary[0][lCharactersCharacterId];
                 const charLogin = temporary[0][lCharactersAccountUsername];
+                const charOnline = temporary[0].online;
 
-                if ((await connectionLS.query(`SELECT server_id, character_id, amount, refund FROM fiskpay_temporary WHERE server_id = ? AND character_id = '${charId}' AND amount = ? AND refund = ?;`, [id, amount, refund]))[0].length != 0)
+                if (String(charOnline) == "1")
+                    result = { "fail": "Character " + character + " is online" };
+                else if ((await connectionLS.query(`SELECT server_id, character_id, amount, refund FROM fiskpay_temporary WHERE server_id = ? AND character_id = '${charId}' AND amount = ? AND refund = ?;`, [id, amount, refund]))[0].length != 0)
                     result = { "fail": "Trying to exploit? Help us grow, report your findings" };
                 else {
 

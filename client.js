@@ -72,12 +72,14 @@ process.emit = suppresser;
                     let balance = 0
                     let ids = 0;
 
-                    serversStatus[id].i = setInterval( () => {
+                    serversStatus[id].i = setInterval(() => {
 
-                        (refund >= 3) ? (async () => { refund = 0; await serverConnector.REFUND_CHARACTERS(id); }) : (refund++);
-                        (balance >= 1) ? (async () => { balance = 0; await serverConnector.UPDATE_GAMESERVER_BALANCE(id); }) : (balance++);
-                        (ids >= 6) ? (async () => { ids = 0; await serverConnector.UPDATE_IDS(id); }) : (ids++);
+                        if (serversStatus[id].c === true) {
 
+                            (refund >= 3) ? (async () => { refund = 0; await serverConnector.REFUND_CHARACTERS(id); }) : (refund++);
+                            (balance >= 1) ? (async () => { balance = 0; await serverConnector.UPDATE_GAMESERVER_BALANCE(id); }) : (balance++);
+                            (ids >= 15) ? (async () => { ids = 0; await serverConnector.UPDATE_IDS(id); }) : (ids++);
+                        }
                     }, 10000);
                 }
 
@@ -87,9 +89,6 @@ process.emit = suppresser;
                 console.log(dateTime() + " | Server `" + id + "` database validation failed");
         }
         else {
-
-            if (serversStatus[id].v !== false)
-                setTimeout(async () => { serverConnector.CONNECT_SERVER(id); }, 10000);
 
             if (serversStatus[id].c !== false) {
 
@@ -101,6 +100,9 @@ process.emit = suppresser;
 
                 console.log(dateTime() + " | Server `" + id + "` database connection failed");
             }
+
+            if (serversStatus[id].v !== false)
+                setTimeout(async () => { serverConnector.CONNECT_SERVER(id); }, 10000);
         }
 
         if (serversStatus[id].c !== (serversStatus[id].c = connected)) {
@@ -309,7 +311,7 @@ process.emit = suppresser;
 
     const serverIDs = await serverConnector.GET_IDS();
 
-    if (serverIDs === false){
+    if (serverIDs === false) {
 
         console.log(dateTime() + " | Could not get the gameserver id list from loginserver database");
         process.exit();
