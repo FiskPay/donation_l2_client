@@ -296,7 +296,7 @@ process.emit = suppresser;
     }
 
     console.log(dateTime() + " |");
-    console.log(dateTime() + " | Connecting to loginserver database...");
+    console.log(dateTime() + " | Connecting to login server database...");
 
     if (!(connectorConfig["ls"] && connectorConfig["ls"].dbName && connectorConfig["ls"].dbPort && connectorConfig["ls"].dbUsername && connectorConfig["ls"].dbPassword && connectorConfig["ls"].dbTableColumns && connectorConfig["ls"].dbTableColumns.accounts && connectorConfig["ls"].dbTableColumns.gameservers)) {
 
@@ -307,13 +307,13 @@ process.emit = suppresser;
     await connectToServer("ls");
 
     console.log(dateTime() + " |");
-    console.log(dateTime() + " | Connecting to gameserver(s) database...");
+    console.log(dateTime() + " | Connecting to game server(s) database...");
 
     const serverIDs = await serverConnector.GET_IDS();
 
     if (serverIDs === false) {
 
-        console.log(dateTime() + " | Could not get the gameserver id list from loginserver database");
+        console.log(dateTime() + " | Could not get the game server(s) id list from login server database");
         process.exit();
     }
 
