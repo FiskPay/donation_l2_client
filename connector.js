@@ -165,8 +165,8 @@ class Connector extends EventEmitter {
 
     #config;
     #remoteIPAddress;
-    #connections = class { this = []; }
-    #serverData = {}
+    #connections = class { this = []; };
+    #serverData = {};
 
     constructor(config, remoteIPAddress) {
 
@@ -327,7 +327,14 @@ class Connector extends EventEmitter {
                     this.emit("updateServer", id, false);
                 });
 
-                this.#serverData[id] = { "interval": undefined, "tables": undefined, "reward": undefined }
+                if (typeof this.#serverData[id] == "undefined") {
+
+                    if (id == "ls")
+                        this.#serverData[id] = { "interval": undefined, "tables": undefined };
+                    else
+                        this.#serverData[id] = { "interval": undefined, "tables": undefined, "reward": undefined };
+                }
+
                 this.#serverData[id].interval = setInterval(() => { connection.query(`SELECT 1;`); }, 45000);
 
                 this.emit("updateServer", id, true);
