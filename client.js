@@ -1,7 +1,7 @@
 "use strict";
 
 const { io } = require("socket.io-client");
-const Connector = require("./connector.js");
+const connector = require("./connector.js");
 const path = require("node:path");
 const fs = require("node:fs");
 
@@ -53,7 +53,7 @@ process.emit = suppresser;
 
     let updateServerTimeout;
 
-    const serverConnector = new Connector(connectorConfig, remoteIPAddress);
+    const serverConnector = new connector(connectorConfig, remoteIPAddress);
     const socketConnector = io("wss://ds.fiskpay.com:42099", { "autoConnect": false, "reconnection": true, "reconnectionDelay": 5000, "reconnectionAttempts": Infinity });
     //const socketConnector = io("ws://127.0.0.1:42099", { "autoConnect": false, "reconnection": true, "reconnectionDelay": 5000, "reconnectionAttempts": Infinity });
 

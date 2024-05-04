@@ -345,7 +345,7 @@ class Connector extends EventEmitter {
             }
             finally {
 
-                resolve(true)
+                resolve(true);
             }
         });
     }
