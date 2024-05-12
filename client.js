@@ -72,13 +72,31 @@ process.emit = suppresser;
                     let balance = 0
                     let ids = 0;
 
-                    serversStatus[id].i = setInterval(() => {
+                    serversStatus[id].i = setInterval(async () => {
 
                         if (serversStatus[id].c === true) {
 
-                            (refund >= 3) ? (async () => { refund = 0; await serverConnector.REFUND_CHARACTERS(id); }) : (refund++);
-                            (balance >= 1) ? (async () => { balance = 0; await serverConnector.UPDATE_GAMESERVER_BALANCE(id); }) : (balance++);
-                            (ids >= 15) ? (async () => { ids = 0; await serverConnector.UPDATE_IDS(id); }) : (ids++);
+                            refund++;
+                            balance++;
+                            ids++;
+
+                            if (refund >= 3) {
+
+                                await serverConnector.REFUND_CHARACTERS(id);
+                                refund = 0;
+                            }
+
+                            if (balance >= 1) {
+
+                                await serverConnector.UPDATE_GAMESERVER_BALANCE(id);
+                                balance = 0;
+                            }
+
+                            if (ids >= 15) {
+
+                                await serverConnector.UPDATE_IDS(id);
+                                ids = 0;
+                            }
                         }
                     }, 10000);
                 }
