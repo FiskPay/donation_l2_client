@@ -85,7 +85,7 @@ process.emit = suppresser;
                             if (counter % 15 == 0)
                                 await serverConnector.UPDATE_IDS(id);
 
-                            if (counter > 10000000000)
+                            if (counter > 10000000001)
                                 counter = 1;
                         }
                     }, 10000);
