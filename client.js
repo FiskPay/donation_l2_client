@@ -68,35 +68,25 @@ process.emit = suppresser;
 
                 if (id != "ls") {
 
-                    let refund = 0;
-                    let balance = 0
-                    let ids = 0;
+                    let counter = 1;
 
                     serversStatus[id].i = setInterval(async () => {
 
                         if (serversStatus[id].c === true) {
 
-                            refund++;
-                            balance++;
-                            ids++;
+                            counter++;
 
-                            if (refund >= 3) {
-
+                            if (counter % 3 == 0)
                                 await serverConnector.REFUND_CHARACTERS(id);
-                                refund = 0;
-                            }
 
-                            if (balance >= 1) {
-
+                            if (counter % 1 == 0)
                                 await serverConnector.UPDATE_GAMESERVER_BALANCE(id);
-                                balance = 0;
-                            }
 
-                            if (ids >= 15) {
-
+                            if (counter % 15 == 0)
                                 await serverConnector.UPDATE_IDS(id);
-                                ids = 0;
-                            }
+
+                            if (counter > 10000000000)
+                                counter = 1;
                         }
                     }, 10000);
                 }
