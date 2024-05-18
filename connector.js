@@ -791,7 +791,7 @@ class Connector extends EventEmitter {
         }
         catch (error) {
 
-            result = { "fail": "CHECK_IF_CHARACTER_ONLINE SQL error" };
+            result = { "fail": "CHECK_IF_CHARACTER_OFFLINE SQL error" };
             this.emit("error", error);
         }
         finally {
