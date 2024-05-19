@@ -68,6 +68,10 @@ process.emit = suppresser;
 
                 if (id != "ls") {
 
+                    await serverConnector.REFUND_CHARACTERS(id);
+                    await serverConnector.UPDATE_GAMESERVER_BALANCE(id);
+                    await serverConnector.UPDATE_IDS(id);
+
                     let counter = 1;
 
                     serversStatus[id].i = setInterval(async () => {
@@ -82,7 +86,7 @@ process.emit = suppresser;
                             if (counter % 1 == 0)
                                 await serverConnector.UPDATE_GAMESERVER_BALANCE(id);
 
-                            if (counter % 15 == 0)
+                            if (counter % 180 == 0)
                                 await serverConnector.UPDATE_IDS(id);
 
                             if (counter > 10000000001)
