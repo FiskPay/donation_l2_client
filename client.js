@@ -57,7 +57,72 @@ process.emit = suppresser;
     const socketConnector = io("wss://ds.fiskpay.com:42099", { "autoConnect": false, "reconnection": true, "reconnectionDelay": 5000, "reconnectionAttempts": Infinity });
     //const socketConnector = io("ws://127.0.0.1:42099", { "autoConnect": false, "reconnection": true, "reconnectionDelay": 5000, "reconnectionAttempts": Infinity });
 
+    const serverName = (id) => {
+
+        switch (String(id)) {
+
+            case "1":
+                return "Bartz";
+            case "2":
+                return "Sieghardt";
+            case "3":
+                return "Kain";
+            case "4":
+                return "Lionna";
+            case "5":
+                return "Erica";
+            case "6":
+                return "Gustin";
+            case "7":
+                return "Devianne";
+            case "8":
+                return "Hindemith";
+            case "9":
+                return "Teon";
+            case "10":
+                return "Franz";
+            case "11":
+                return "Luna";
+            case "12":
+                return "Kastien";
+            case "13":
+                return "Airin";
+            case "14":
+                return "Staris";
+            case "15":
+                return "Ceriel";
+            case "16":
+                return "Fehyshar";
+            case "17":
+                return "Elhwynna";
+            case "18":
+                return "Ellikia";
+            case "19":
+                return "Shikken";
+            case "20":
+                return "Scryde";
+            case "21":
+                return "Frikios";
+            case "22":
+                return "Ophylia";
+            case "23":
+                return "Shakdun";
+            case "24":
+                return "Tarziph";
+            case "25":
+                return "Aria";
+            default:
+                return "Unknown";
+        }
+    }
+
     serverConnector.on("updateServer", async (id, connected) => {
+
+        if (typeof serversStatus[id].i != "undefined") {
+
+            clearInterval(serversStatus[id].i);
+            delete serversStatus[id].i;
+        }
 
         if (connected) {
 
@@ -89,31 +154,37 @@ process.emit = suppresser;
                             if (counter % 180 == 0)
                                 await serverConnector.UPDATE_IDS(id);
 
-                            if (counter > 10000000001)
+                            if (counter >= 10000000001)
                                 counter = 1;
                         }
                     }, 10000);
-                }
 
-                console.log(dateTime() + " | Server `" + id + "` database connection established");
+                    console.log(dateTime() + " | Connection to game server " + serverName(id) + " database established");
+                }
+                else
+                    console.log(dateTime() + " | Connection to login server database established");
             }
-            else if (await serverConnector.DISCONNECT_SERVER(id))
-                console.log(dateTime() + " | Server `" + id + "` database validation failed");
+            else if (await serverConnector.DISCONNECT_SERVER(id)) {
+
+                if (id != "ls")
+                    console.log(dateTime() + " | Game server " + serverName(id) + " database validation failed");
+                else
+                    console.log(dateTime() + " | Login server database validation failed");
+
+                process.exit();
+            }
         }
         else {
 
             if (serversStatus[id].c !== false) {
 
-                if (typeof serversStatus[id].i != "undefined") {
-
-                    clearInterval(serversStatus[id].i);
-                    delete serversStatus[id].i;
-                }
-
-                console.log(dateTime() + " | Server `" + id + "` database connection failed");
+                if (id != "ls")
+                    console.log(dateTime() + " | Connection to game server " + serverName(id) + " database failed");
+                else
+                    console.log(dateTime() + " | Connection to login server database failed");
             }
 
-            if (serversStatus[id].v !== false)
+            if (typeof serversStatus[id].v == "undefined" || serversStatus[id].v === true)
                 setTimeout(async () => { serverConnector.CONNECT_SERVER(id); }, 10000);
         }
 
@@ -137,7 +208,7 @@ process.emit = suppresser;
             updateServerTimeout = setTimeout(() => {
 
                 socketConnector.volatile.emit("onlineServers", onlineServers);
-            }, 50)
+            }, 500)
         }
     }).on("error", (error) => {
 
@@ -158,43 +229,45 @@ process.emit = suppresser;
 
     socketConnector.on("connect", () => {
 
-        socketConnector.emit("login", { "symbol": tokenSymbol, "wallet": connectorConfig["client"].walletAddress, "password": connectorConfig["client"].password, "servers": onlineServers }, (responseObject) => {
+        socketConnector.emit("login", { "symbol": tokenSymbol, "wallet": connectorConfig["client"].walletAddress, "password": connectorConfig["client"].password, "servers": onlineServers }, async (responseObject) => {
 
             if (responseObject.fail) {
 
                 console.log(dateTime() + " | " + responseObject.fail);
-                process.exit()
+                console.log(dateTime() + " |");
+                console.log(dateTime() + " | ----------------------------------------------------------------------------------- ");
+                process.exit();
             }
 
             console.log(dateTime() + " | Connection to service established");
             console.log(dateTime() + " |");
+            console.log(dateTime() + " | ----------------------------------------------------------------------------------- ");
         });
     }).on("disconnect", () => {
 
-        console.log(dateTime() + " |");
         console.log(dateTime() + " | Service temporary unavailable");
     }).on("logDeposit", async (txHash, from, symbol, amount, server, character) => {
 
         if (typeof serversStatus[server] == "undefined" || serversStatus[server].c !== true)
-            console.log(dateTime() + " | You must manually reward character " + character + " with " + amount + " tokens. Server `" + server + "` database currently unavailable");
+            console.log(dateTime() + " | You must manually reward character " + character + " with " + amount + " tokens. Game server " + serverName(server) + " database currently unavailable");
         else if (await serverConnector.LOG_DEPOSIT(txHash, from, amount, server, character) === true)
-            console.log(dateTime() + " | Deposit: " + amount + " " + symbol + ", from " + from + ", to " + character + ", server `" + server + "`");
+            console.log(dateTime() + " | Deposit: " + amount + " " + symbol + ", From: " + from + ", To: " + character + ", Game server: " + serverName(server));
         else
-            console.log(dateTime() + " | You must manually reward character " + character + " with " + amount + " tokens. Server `" + server + "`");
+            console.log(dateTime() + " | You must manually reward character " + character + " with " + amount + " tokens on game server " + serverName(server));
     }).on("logWithdrawal", async (txHash, to, symbol, amount, server, character, refund) => {
 
         if (typeof serversStatus[server] == "undefined" || serversStatus[server].c !== true)
-            console.log(dateTime() + " | You must manually remove " + amount + " tokens from character " + character + ". Server `" + server + "` database currently unavailable");
+            console.log(dateTime() + " | You must manually remove " + amount + " tokens from character " + character + ". Server " + serverName(server) + " database currently unavailable");
         else if (await serverConnector.LOG_WITHDRAWAL(txHash, to, amount, server, character, refund) === true)
-            console.log(dateTime() + " | Withdrawal: " + amount + " tokens, from " + character + ", to " + to + ", server `" + server + "`");
+            console.log(dateTime() + " | Withdrawal: " + amount + " tokens, From: " + character + ", To: " + to + ", Game server: " + serverName(server));
         else
-            console.log(dateTime() + " | You must manually remove " + amount + " tokens from character " + character + ". Server `" + server + "`");
+            console.log(dateTime() + " | You must manually remove " + amount + " tokens from character " + character + " on game server " + serverName(server));
     }).on("request", async (requestObject, requestCB) => {
 
         if (typeof serversStatus["ls"] == "undefined" || serversStatus["ls"].c !== true)
-            requestCB({ "fail": "Login database unavailable" });
+            requestCB({ "fail": "Login server database unavailable" });
         else if (typeof serversStatus[requestObject.id] == "undefined" || serversStatus[requestObject.id].c !== true)
-            requestCB({ "fail": "Server `" + requestObject.id + "` database unavailable" });
+            requestCB({ "fail": "Game server " + serverName(requestObject.id) + " database unavailable" });
         else {
 
             const data = requestObject.data;
@@ -294,13 +367,9 @@ process.emit = suppresser;
 
             const interval = setInterval(() => {
 
-                if (serversStatus[id].v !== undefined) {
+                if (serversStatus[id].c === true && serversStatus[id].v === true) {
 
                     clearInterval(interval);
-
-                    if (serversStatus[id].v !== true)
-                        process.exit();
-
                     resolve(true);
                 }
             }, 250);
@@ -312,7 +381,7 @@ process.emit = suppresser;
 
     if (!(connectorConfig["ls"] && connectorConfig["ls"].dbName && connectorConfig["ls"].dbPort && connectorConfig["ls"].dbUsername && connectorConfig["ls"].dbPassword && connectorConfig["ls"].dbTableColumns && connectorConfig["ls"].dbTableColumns.accounts && connectorConfig["ls"].dbTableColumns.gameservers)) {
 
-        console.log(dateTime() + " | Server `ls` improper configuration");
+        console.log(dateTime() + " | Login server improper configuration");
         process.exit();
     }
 
@@ -333,7 +402,7 @@ process.emit = suppresser;
 
         if (!(connectorConfig[id] && connectorConfig[id].rewardTypeId && connectorConfig[id].dbName && connectorConfig[id].dbIPAddress && connectorConfig[id].dbPort && connectorConfig[id].dbUsername && connectorConfig[id].dbPassword && connectorConfig[id].dbTableColumns && connectorConfig[id].dbTableColumns.characters && connectorConfig[id].dbTableColumns.items)) {
 
-            console.log(dateTime() + " | Server `" + id + "` improper configuration");
+            console.log(dateTime() + " | Game server " + serverName(id) + " improper configuration");
             process.exit();
         }
 
