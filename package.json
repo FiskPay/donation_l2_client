@@ -7,7 +7,7 @@
 	],
 	"dependencies": {
 		"mysql2": "^3.6.5",
-		"socket.io-client": "^4.7.2"
+		"socket.io-client": "^4.7.5"
 	},
 	"scripts": {
 		"sea-full": "npm run make-blob && npm run sea-win && npm run sea-lin && npm run sea-mac",
