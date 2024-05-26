@@ -5,12 +5,6 @@ const connector = require("./connector.js");
 const path = require("node:path");
 const fs = require("node:fs");
 
-//
-const { emit: originalEmit } = process;
-function suppresser(event, error) { return ((event === 'warning' && error.name === 'ExperimentalWarning') ? (false) : (originalEmit.apply(process, arguments))); }
-process.emit = suppresser;
-//
-
 (async () => {
 
     const dateTime = () => {
@@ -47,7 +41,7 @@ process.emit = suppresser;
     console.log(dateTime() + " |");
     console.log(dateTime() + " | Fetching configuration file...");
 
-    const configFile = path.join((process.pkg && process.pkg.entrypoint) ? (".") : (path.dirname(process.argv[1])), ".config");
+    const configFile = path.join((process.pkg && process.pkg.entrypoint) ? (".") : (path.dirname(process.argv[1])), "fp.config");
     const connectorConfig = JSON.parse(fs.readFileSync(configFile, { flag: "r", encoding: "utf8" }));
 
     console.log(dateTime() + " | Configuration file: " + configFile);

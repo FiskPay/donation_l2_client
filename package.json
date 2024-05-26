@@ -10,8 +10,11 @@
 		"socket.io-client": "^4.7.2"
 	},
 	"scripts": {
+		"sea-full": "npm run make-blob && npm run sea-win && npm run sea-lin && npm run sea-mac",
 		"make-blob": "esbuild client.js --bundle --platform=node --outfile=./sea-build/built-client.js && node --experimental-sea-config sea-config.json",
-		"sea-win": "copy \"M:\\Nodejs Versions\\NodeWin.exe\" \"M:\\Workspaces\\Code Vision Studio\\FiskPay Donations\\fiskpay_donation\\l2_client\\sea-build/Windows\\L2FiskPay.exe\" && npx postject ./sea-build/Windows/L2FiskPay.exe NODE_SEA_BLOB ./sea-build/client.blob --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2 --overwrite",
+		"sea-win": "copy \"M:\\Nodejs Versions\\NodeWin.exe\" \"M:\\Workspaces\\Code Vision Studio\\FiskPay Donations\\fiskpay_donation\\l2_client\\sea-build\\Windows\\L2FiskPay.exe\" && npx postject ./sea-build/Windows/L2FiskPay.exe NODE_SEA_BLOB ./sea-build/client.blob --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2 --overwrite",
+		"sea-lin": "copy \"M:\\Nodejs Versions\\NodeLin\" \"M:\\Workspaces\\Code Vision Studio\\FiskPay Donations\\fiskpay_donation\\l2_client\\sea-build\\Linux\\L2FiskPay\" && npx postject ./sea-build/Linux/L2FiskPay NODE_SEA_BLOB ./sea-build/client.blob --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2 --overwrite",
+		"sea-mac": "copy \"M:\\Nodejs Versions\\NodeMac\" \"M:\\Workspaces\\Code Vision Studio\\FiskPay Donations\\fiskpay_donation\\l2_client\\sea-build\\MacOS\\L2FiskPay\" && npx postject ./sea-build/MacOS/L2FiskPay NODE_SEA_BLOB ./sea-build/client.blob --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2 --overwrite",
 		"pkg-lin": "pkg ./client.js --target node18-linux-x64 --output ./pkg-build/Linux/L2FiskPay",
 		"pkg-win": "pkg ./client.js --target node18-windows-x64 --output ./pkg-build/Windows/L2FiskPay",
 		"pkg-mac": "pkg ./client.js --target node18-macos-x64 --output ./pkg-build/MacOS/L2FiskPay"
