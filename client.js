@@ -34,6 +34,10 @@ process.emit = suppresser;
     const tokenSymbol = "USDT";// USDT LINK
 
     console.log(dateTime() + " |");
+    console.log(dateTime() + " | Supporting " + tokenSymbol + " token on Polygon network");
+    console.log(dateTime() + " | Complied using Node version " + process.versions.node);
+
+    console.log(dateTime() + " |");
     console.log(dateTime() + " | Fetching remote IP address...");
 
     const remoteIPAddress = (await (await fetch("https://api.fiskpay.com/ip/")).json()).ip;

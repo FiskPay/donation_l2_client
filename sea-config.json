@@ -1,0 +1,7 @@
+{
+    "main": "sea-build/built-client.js",
+    "output": "sea-build/client.blob",
+    "disableExperimentalSEAWarning": true,
+    "useSnapshot": false,
+    "useCodeCache": false
+}
