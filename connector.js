@@ -568,10 +568,10 @@ class Connector extends EventEmitter {
                 const walletAddress = temporary[0].wallet_address;
                 const targetPassword = temporary[0][lAccountsAccountPassword];
 
-                if (walletAddress != "not linked")
-                    result = { "fail": "Account " + username + " already linked to an Ethereum address" };
-                else if (!validatePassword(password, targetPassword))
+                if (!validatePassword(password, targetPassword))
                     result = { "fail": "Username - password mismatch" };
+                else if (walletAddress != "not linked")
+                    result = { "fail": "Account " + username + " already linked to an Ethereum address" };
                 else
                     result = { "data": ((await connection.query(`UPDATE accounts SET wallet_address = ? WHERE ${lCharactersAccountUsername} = ? AND wallet_address = 'not linked' AND ${lAccountsAccountPassword} = '${targetPassword}';`, [ethAddress, username]))[0].changedRows == 1) };
             }
@@ -618,10 +618,10 @@ class Connector extends EventEmitter {
                 const walletAddress = temporary[0].wallet_address;
                 const targetPassword = temporary[0][lAccountsAccountPassword];
 
-                if (walletAddress != ethAddress)
-                    result = { "fail": "Account " + username + " not linked to your Ethereum address" };
-                else if (!validatePassword(password, targetPassword))
+                if (!validatePassword(password, targetPassword))
                     result = { "fail": "Username - password mismatch" };
+                else if (walletAddress != ethAddress)
+                    result = { "fail": "Account " + username + " not linked to your Ethereum address" };
                 else
                     result = { "data": ((await connection.query(`UPDATE accounts SET wallet_address = 'not linked' WHERE ${lCharactersAccountUsername} = ? AND wallet_address = ? AND ${lAccountsAccountPassword} = '${targetPassword}';`, [username, ethAddress]))[0].changedRows == 1) };
             }
