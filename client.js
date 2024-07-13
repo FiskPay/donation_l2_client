@@ -249,7 +249,7 @@ const fs = require("node:fs");
         if (typeof serversStatus[server] == "undefined" || serversStatus[server].c !== true)
             console.log(dateTime() + " | You must manually reward character " + character + " with " + amount + " tokens. Game server " + serverName(server) + " database currently unavailable");
         else if (await serverConnector.LOG_DEPOSIT(txHash, from, amount, server, character) === true)
-            console.log(dateTime() + " | Deposit: " + amount + " " + symbol + ", From: " + from + ", To: " + character + ", Game server: " + serverName(server));
+            console.log(dateTime() + " | " + serverName(server) + ": " + from + " -> " + character + " = " + amount + " " + symbol);
         else
             console.log(dateTime() + " | You must manually reward character " + character + " with " + amount + " tokens on game server " + serverName(server));
     }).on("logWithdrawal", async (txHash, to, symbol, amount, server, character, refund) => {
@@ -257,7 +257,7 @@ const fs = require("node:fs");
         if (typeof serversStatus[server] == "undefined" || serversStatus[server].c !== true)
             console.log(dateTime() + " | You must manually remove " + amount + " tokens from character " + character + ". Server " + serverName(server) + " database currently unavailable");
         else if (await serverConnector.LOG_WITHDRAWAL(txHash, to, amount, server, character, refund) === true)
-            console.log(dateTime() + " | Withdrawal: " + amount + " tokens, From: " + character + ", To: " + to + ", Game server: " + serverName(server));
+            console.log(dateTime() + " | " + serverName(server) + ": " + character + " -> " + to + " = " + amount + " " + symbol);
         else
             console.log(dateTime() + " | You must manually remove " + amount + " tokens from character " + character + " on game server " + serverName(server));
     }).on("request", async (requestObject, requestCB) => {

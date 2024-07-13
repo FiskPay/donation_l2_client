@@ -982,7 +982,6 @@ class Connector extends EventEmitter {
                     }
                 }
             }
-
         }
         catch (error) {
 
