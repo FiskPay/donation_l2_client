@@ -576,9 +576,9 @@ class Connector extends EventEmitter {
                     result = { "data": ((await connection.query(`UPDATE accounts SET wallet_address = ? WHERE ${lCharactersAccountUsername} = ? AND wallet_address = 'not linked' AND ${lAccountsAccountPassword} = '${targetPassword}';`, [ethAddress, username]))[0].changedRows == 1) };
             }
             else if (temporary.length == 0)
-                result = { "fail": "Account " + username + " does not exist" };
+                result = { "fail": "Username - password mismatch" };
             else
-                result = { "fail": "Multiple instances of account " + username };
+                result = { "fail": "Multiple instances of account " + username + " in db" };
         }
         catch (error) {
 
@@ -626,9 +626,9 @@ class Connector extends EventEmitter {
                     result = { "data": ((await connection.query(`UPDATE accounts SET wallet_address = 'not linked' WHERE ${lCharactersAccountUsername} = ? AND wallet_address = ? AND ${lAccountsAccountPassword} = '${targetPassword}';`, [username, ethAddress]))[0].changedRows == 1) };
             }
             else if (temporary.length == 0)
-                result = { "fail": "Account " + username + " does not exist" };
+                result = { "fail": "Username - password mismatch" };
             else
-                result = { "fail": "Multiple instances of account " + username };
+                result = { "fail": "Multiple instances of account " + username + " in db" };
         }
         catch (error) {
 
