@@ -174,127 +174,6 @@ class Connector extends EventEmitter {
         this.#remoteIPAddress = remoteIPAddress;
     }
 
-    #idsStatement = (id) => {
-
-        return (`
-                SELECT
-                    MAX(groups.group0) AS max0,
-                    SUM(IF (groups.group0 IS NOT NULL, 1, 0)) AS sum0,
-                    MAX(groups.group1) AS max1,
-                    SUM(IF (groups.group1 IS NOT NULL, 1, 0)) AS sum1,
-                    MAX(groups.group2) AS max2,
-                    SUM(IF (groups.group2 IS NOT NULL, 1, 0)) AS sum2,
-                    MAX(groups.group3) AS max3,
-                    SUM(IF (groups.group3 IS NOT NULL, 1, 0)) AS sum3
-                FROM (
-                    SELECT
-                        (SELECT ids.id WHERE ids.id BETWEEN 268435456 AND 738197503) AS group0,
-                        (SELECT ids.id WHERE ids.id BETWEEN 738197504 AND 1207959551) AS group1,
-                        (SELECT ids.id WHERE ids.id BETWEEN 1207959552 AND 1677721599) AS group2,
-                        (SELECT ids.id WHERE ids.id BETWEEN 1677721600 AND 2147483647) AS group3
-                    FROM (
-                        SELECT ${this.#serverData[id].tables.characters.characterId} AS id FROM characters
-                        UNION
-                        SELECT ${this.#serverData[id].tables.items.itemId} AS id FROM items
-                        UNION
-                        SELECT ${this.#serverData[id].tables.items_on_ground.itemId} AS id FROM items_on_ground
-                        UNION
-                        SELECT ${this.#serverData[id].tables.clan_data.clanId} AS id FROM clan_data
-                        UNION
-                        SELECT ${this.#serverData[id].tables.mods_wedding.weddingId} AS id FROM mods_wedding
-                        ORDER BY id
-                    ) AS ids
-                ) AS groups
-                `);
-    }
-
-    #initializeIds = async (id, connection) => {
-
-        const groups = (await connection.query(this.#idsStatement(id)))[0][0];
-
-        let startId = (((738197503 - Number(groups.max0)) > 50000) ? (Number(groups.max0)) : (268435456 + 1000000));
-        let startGroup = "group0";
-        let minValue = Number(groups.sum0);
-
-        if (Number(groups.sum1) < minValue) {
-
-            startId = ((groups.max1 != null && (1207959551 - Number(groups.max1)) > 50000) ? (Number(groups.max1)) : (738197504 + 1000000));
-            startGroup = "group1";
-
-            minValue = Number(groups.sum1);
-        }
-
-        if (Number(groups.sum2) < minValue) {
-
-            startId = ((groups.max2 != null && (1677721599 - Number(groups.max2)) > 50000) ? (Number(groups.max2)) : (1207959552 + 1000000));
-            startGroup = "group2";
-
-            minValue = Number(groups.sum2);
-        }
-
-        if (Number(groups.sum3) < minValue) {
-
-            startId = ((groups.max3 != null && (2147483647 - Number(groups.max3)) > 50000) ? (Number(groups.max3)) : (1677721600 + 1000000));
-            startGroup = "group3";
-        }
-
-        return ({ "typeId": this.#config[id].rewardTypeId, "nowId": startId, "nowGroup": startGroup, "group0": Number(groups.sum0), "group1": Number(groups.sum1), "group2": Number(groups.sum2), "group3": Number(groups.sum3) });
-    }
-
-    #updateIds = async (id, connection) => {
-
-        const groups = (await connection.query(this.#idsStatement(id)))[0][0];
-
-        if (this.#serverData[id].reward.nowGroup == "group0" && (Number(groups.sum0) > this.#serverData[id].reward.group0 || Number(groups.sum3) > this.#serverData[id].reward.group3)) {
-
-            this.#serverData[id].reward.nowId = ((groups.max2 != null && (1677721599 - Number(groups.max2)) > 50000) ? (Number(groups.max2)) : (1207959552 + 1000000));
-            this.#serverData[id].reward.nowGroup = "group2";
-        }
-        else if (this.#serverData[id].reward.nowGroup == "group1" && (Number(groups.sum1) > this.#serverData[id].reward.group1 || Number(groups.sum0) > this.#serverData[id].reward.group0)) {
-
-            this.#serverData[id].reward.nowId = ((groups.max3 != null && (2147483647 - Number(groups.max3)) > 50000) ? (Number(groups.max3)) : (1677721600 + 1000000));
-            this.#serverData[id].reward.nowGroup = "group3";
-        }
-        else if (this.#serverData[id].reward.nowGroup == "group2" && (Number(groups.sum2) > this.#serverData[id].reward.group2 || Number(groups.sum1) > this.#serverData[id].reward.group1)) {
-
-            this.#serverData[id].reward.nowId = ((groups.max0 != null && (738197503 - Number(groups.max0)) > 50000) ? (Number(groups.max0)) : (268435456 + 1000000));
-            this.#serverData[id].reward.nowGroup = "group0";
-        }
-        else if (this.#serverData[id].reward.nowGroup == "group3" && (Number(groups.sum3) > this.#serverData[id].reward.group3 || Number(groups.sum2) > this.#serverData[id].reward.group2)) {
-
-            this.#serverData[id].reward.nowId = ((groups.max1 != null && (1207959551 - Number(groups.max1)) > 50000) ? (Number(groups.max1)) : (738197504 + 1000000));
-            this.#serverData[id].reward.nowGroup = "group1";
-        }
-
-        return true;
-    }
-
-    #increaseIdCount = (id, amount) => {
-
-
-        this.#serverData[id].reward.group0 += ((this.#serverData[id].reward.nowGroup == "group0") ? (amount) : (0));
-        this.#serverData[id].reward.group1 += ((this.#serverData[id].reward.nowGroup == "group1") ? (amount) : (0));
-        this.#serverData[id].reward.group2 += ((this.#serverData[id].reward.nowGroup == "group2") ? (amount) : (0));
-        this.#serverData[id].reward.group3 += ((this.#serverData[id].reward.nowGroup == "group3") ? (amount) : (0));
-
-        return true;
-    }
-
-    #decreaseIdCount = (id, amount) => {
-
-        this.#serverData[id].reward.group0 -= ((this.#serverData[id].reward.nowGroup == "group0") ? (amount) : (0));
-        this.#serverData[id].reward.group1 -= ((this.#serverData[id].reward.nowGroup == "group1") ? (amount) : (0));
-        this.#serverData[id].reward.group2 -= ((this.#serverData[id].reward.nowGroup == "group2") ? (amount) : (0));
-        this.#serverData[id].reward.group3 -= ((this.#serverData[id].reward.nowGroup == "group3") ? (amount) : (0));
-
-        return true;
-    }
-
-    #getNextId = (id) => {
-
-        return (this.#serverData[id].reward.nowId = ((this.#serverData[id].reward.nowId < 2147483647) ? (this.#serverData[id].reward.nowId + 1) : (268435456)));
-    }
-
     CONNECT_SERVER = async (id) => {//C
 
         return await new Promise(async (resolve) => {
@@ -330,7 +209,7 @@ class Connector extends EventEmitter {
                     if (id == "ls")
                         this.#serverData[id] = { "interval": undefined, "tables": undefined };
                     else
-                        this.#serverData[id] = { "interval": undefined, "tables": undefined, "reward": undefined };
+                        this.#serverData[id] = { "interval": undefined, "tables": undefined, "rewardId": undefined };
                 }
 
                 this.#serverData[id].interval = setInterval(() => { connection.query(`SELECT 1;`); }, 45000);
@@ -401,8 +280,6 @@ class Connector extends EventEmitter {
                     if (addBalanceColumn)
                         await connection.query(`ALTER TABLE gameservers ADD COLUMN balance INT(10) UNSIGNED NOT NULL DEFAULT '0';`);
 
-                    //await connection.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS wallet_address VARCHAR(42) NOT NULL DEFAULT 'not linked';`);
-                    //await connection.query(`ALTER TABLE gameservers ADD COLUMN IF NOT EXISTS balance INT(10) UNSIGNED NOT NULL DEFAULT '0';`);
                     await connection.query(`CREATE TABLE IF NOT EXISTS fiskpay_deposits (server_id INT(11) NOT NULL, transaction_hash VARCHAR(66) NOT NULL, character_name VARCHAR(35) NOT NULL, wallet_address VARCHAR(42) NOT NULL, amount INT(10) UNSIGNED NOT NULL, PRIMARY KEY(transaction_hash)) ENGINE = InnoDB DEFAULT CHARSET = utf8;`);
                     await connection.query(`CREATE TABLE IF NOT EXISTS fiskpay_withdrawals (server_id INT(11) NOT NULL, transaction_hash VARCHAR(66) NOT NULL, character_name VARCHAR(35) NOT NULL, wallet_address VARCHAR(42) NOT NULL, amount INT(10) UNSIGNED NOT NULL, PRIMARY KEY(transaction_hash)) ENGINE = InnoDB DEFAULT CHARSET = utf8;`);
                     await connection.query(`CREATE TABLE IF NOT EXISTS fiskpay_temporary (server_id INT(11) NOT NULL, character_id INT(10) NOT NULL, amount INT(10) UNSIGNED NOT NULL, refund INT(10) UNSIGNED NOT NULL, PRIMARY KEY(server_id, character_id, refund)) ENGINE = InnoDB DEFAULT CHARSET = utf8;`);
@@ -416,46 +293,28 @@ class Connector extends EventEmitter {
 
                 const charactersTable = (await connection.query(`SHOW COLUMNS FROM characters;`))[0];
                 const itemsTable = (await connection.query(`SHOW COLUMNS FROM items;`))[0];
-                const itemsOnGroundTable = (await connection.query(`SHOW COLUMNS FROM items_on_ground;`))[0];
-                const clanDataTable = (await connection.query(`SHOW COLUMNS FROM clan_data;`))[0];
-                const weddingTable = (await connection.query(`SHOW COLUMNS FROM mods_wedding;`))[0];
 
-                const gsConfig = this.#config[id].dbTableColumns;
+                const gsTables = this.#config[id].dbTableColumns;
+                const gsRewardId = this.#config[id].rewardTypeId;
 
                 charactersTable.forEach((column) => {
 
-                    if (column.Field == gsConfig.characters.accountUsername || column.Field == gsConfig.characters.characterId || column.Field == gsConfig.characters.characterName)
+                    if (column.Field == gsTables.characters.accountUsername || column.Field == gsTables.characters.characterId || column.Field == gsTables.characters.characterName)
                         checks++;
                 });
 
                 itemsTable.forEach((column) => {
 
-                    if (column.Field == gsConfig.items.characterId || column.Field == gsConfig.items.itemId || column.Field == gsConfig.items.itemTypeId || column.Field == gsConfig.items.itemAmount)
+                    if (column.Field == gsTables.items.characterId || column.Field == gsTables.items.itemId || column.Field == gsTables.items.itemTypeId || column.Field == gsTables.items.itemAmount)
                         checks++
                 });
 
-                itemsOnGroundTable.forEach((column) => {
+                if (checks == 7) {
 
-                    if (column.Field == gsConfig.items_on_ground.itemId)
-                        checks++
-                });
+                    await connection.query(`CREATE TABLE IF NOT EXISTS reserved_item_ids (item_id INT(10) NOT NULL, PRIMARY KEY(item_id)) ENGINE = InnoDB DEFAULT CHARSET = utf8;`);
 
-                clanDataTable.forEach((column) => {
-
-                    if (column.Field == gsConfig.clan_data.clanId)
-                        checks++
-                });
-
-                weddingTable.forEach((column) => {
-
-                    if (column.Field == gsConfig.mods_wedding.weddingId)
-                        checks++
-                });
-
-                if (checks == 10) {
-
-                    this.#serverData[id].tables = gsConfig;
-                    this.#serverData[id].reward = await this.#initializeIds(id, connection);
+                    this.#serverData[id].tables = gsTables;
+                    this.#serverData[id].rewardId = gsRewardId;
 
                     result = true;
                 }
@@ -681,7 +540,7 @@ class Connector extends EventEmitter {
         const lItemsCharacterId = this.#serverData[id].tables.items.characterId;
         const lItemsItemTypeId = this.#serverData[id].tables.items.itemTypeId;
         const lItemsItemAmount = this.#serverData[id].tables.items.itemAmount;
-        const lRewardTypeId = this.#serverData[id].reward.typeId;
+        const lRewardTypeId = this.#serverData[id].rewardId;
 
         let result;
         let temporary;
@@ -710,7 +569,7 @@ class Connector extends EventEmitter {
         const lItemsItemTypeId = this.#serverData[id].tables.items.itemTypeId;
         const lItemsItemAmount = this.#serverData[id].tables.items.itemAmount;
         const lGameserversGameserverId = this.#serverData["ls"].tables.gameservers.gameserverId;
-        const lRewardTypeId = this.#serverData[id].reward.typeId;
+        const lRewardTypeId = this.#serverData[id].rewardId;
 
         let result = false;
         let temporary;
@@ -752,28 +611,6 @@ class Connector extends EventEmitter {
         }
     }
 
-    UPDATE_IDS = async (id) => {//C
-
-        const connection = await this.#connections[id].getConnection();
-
-        let result = false;
-
-        try {
-
-            result = await this.#updateIds(id, connection);
-        }
-        catch (error) {
-
-            result = false;
-            this.emit("error", error);
-        }
-        finally {
-
-            connection.release();
-            return result;
-        }
-    }
-
     CHECK_IF_CHARACTER_OFFLINE = async (id, character) => {//P
 
         const connection = await this.#connections[id].getConnection();
@@ -809,12 +646,10 @@ class Connector extends EventEmitter {
         const lItemsCharacterId = this.#serverData[id].tables.items.characterId;
         const lItemsItemTypeId = this.#serverData[id].tables.items.itemTypeId;
         const lItemsItemAmount = this.#serverData[id].tables.items.itemAmount;
-        const lRewardTypeId = this.#serverData[id].reward.typeId;
+        const lRewardTypeId = this.#serverData[id].rewardId;
 
         let result = false;
         let temporary;
-
-        let addedIds = 0;
 
         try {
 
@@ -838,21 +673,37 @@ class Connector extends EventEmitter {
                     if ((await connectionLS.query(`INSERT INTO fiskpay_deposits (server_id, transaction_hash, character_name, wallet_address, amount) VALUES (?, ?, ?, ?, ?);`, [id, txHash, character, from, amount]))[0].affectedRows == 1)
                         result = true;
                 }
-
             }
             else {
 
-                let nextId = this.#getNextId(id);
+                temporary = (await connectionGS.query(`SELECT item_id FROM reserved_item_ids LIMIT 1;`))[0];
 
-                while ((await connectionGS.query(`SELECT COUNT(${lItemsItemId}) AS instances FROM items WHERE ${lItemsItemId} = '${nextId}';`))[0][0].instances > 0)
-                    nextId = this.#getNextId(id);
+                if (temporary.length == 0) {
 
-                if ((await connectionGS.query(`INSERT INTO items (${lItemsCharacterId}, ${lItemsItemId}, ${lItemsItemTypeId}, ${lItemsItemAmount}, loc) VALUES (${charId}, ${nextId}, ${lRewardTypeId}, ?, 'inventory');`, [amount]))[0].affectedRows == 1) {
+                    this.emit("error", "No item_id was found in table reserved_item_ids");
+                    this.emit("error", "-----------------------------------------------------------------------------------");
+                    this.emit("error", "                            Manual rewarding is required");
+                    this.emit("error", "-----------------------------------------------------------------------------------");
+                    this.emit("error", "TxHash:    " + txHash);
+                    this.emit("error", "Server id: " + id);
+                    this.emit("error", "From:      " + from);
+                    this.emit("error", "To:        " + character);
+                    this.emit("error", "Amount:    " + amount);
+                    this.emit("error", "-----------------------------------------------------------------------------------");
+                }
+                else {
 
-                    if ((await connectionLS.query(`INSERT INTO fiskpay_deposits (server_id, transaction_hash, character_name, wallet_address, amount) VALUES (?, ?, ?, ?, ?);`, [id, txHash, character, from, amount]))[0].affectedRows == 1) {
+                    const nextId = temporary[0].item_id;
 
-                        addedIds++;
-                        result = true;
+                    if ((await connectionGS.query(`DELETE FROM reserved_item_ids WHERE item_id = '${nextId}' LIMIT 1;`))[0].affectedRows == 1) {
+
+                        if ((await connectionGS.query(`INSERT INTO items (${lItemsCharacterId}, ${lItemsItemId}, ${lItemsItemTypeId}, ${lItemsItemAmount}, loc) VALUES (${charId}, ${nextId}, ${lRewardTypeId}, ?, 'inventory');`, [amount]))[0].affectedRows == 1) {
+
+                            if ((await connectionLS.query(`INSERT INTO fiskpay_deposits (server_id, transaction_hash, character_name, wallet_address, amount) VALUES (?, ?, ?, ?, ?);`, [id, txHash, character, from, amount]))[0].affectedRows == 1) {
+
+                                result = true;
+                            }
+                        }
                     }
                 }
             }
@@ -865,8 +716,6 @@ class Connector extends EventEmitter {
         finally {
 
             if (result === true) {
-
-                this.#increaseIdCount(id, addedIds);
 
                 await connectionLS.query(`COMMIT;`);
                 await connectionGS.query(`COMMIT;`);
@@ -896,12 +745,10 @@ class Connector extends EventEmitter {
         const lItemsCharacterId = this.#serverData[id].tables.items.characterId;
         const lItemsItemTypeId = this.#serverData[id].tables.items.itemTypeId;
         const lItemsItemAmount = this.#serverData[id].tables.items.itemAmount;
-        const lRewardTypeId = this.#serverData[id].reward.typeId;
+        const lRewardTypeId = this.#serverData[id].rewardId;
 
         let result = { "data": false };
         let temporary;
-
-        let removedIds = 0;
 
         try {
 
@@ -944,6 +791,8 @@ class Connector extends EventEmitter {
 
                             if (charBalance < amount)
                                 result = { "fail": "Insufficient inventory balance" };
+                            else if ((await connectionGS.query(`SELECT item_id FROM reserved_item_ids LIMIT 1;`))[0].length == 0)
+                                result = { "fail": "Runned out of ids" };
                             else {
 
                                 let remainAmount = amount;
@@ -960,12 +809,13 @@ class Connector extends EventEmitter {
                                         remainAmount = 0;
                                     else if (rowItemAmount <= remainAmount && (await connectionGS.query(`DELETE FROM items WHERE ${lItemsItemId} = '${rowItemId}' LIMIT 1;`))[0].affectedRows == 1) {
 
+                                        if ((await connectionGS.query(`INSERT INTO reserved_item_ids (item_id) VALUES (${rowItemId});`))[0].affectedRows != 1)
+                                            break;
+
                                         if (rowItemAmount == remainAmount)
                                             remainAmount = 0;
                                         else
                                             remainAmount = remainAmount - rowItemAmount;
-
-                                        removedIds++;
                                     }
                                     else
                                         break;
@@ -991,8 +841,6 @@ class Connector extends EventEmitter {
         finally {
 
             if (result.data === true) {
-
-                this.#decreaseIdCount(id, removedIds);
 
                 await connectionLS.query(`COMMIT;`);
                 await connectionGS.query(`COMMIT;`);
@@ -1068,12 +916,10 @@ class Connector extends EventEmitter {
         const lItemsCharacterId = this.#serverData[id].tables.items.characterId;
         const lItemsItemTypeId = this.#serverData[id].tables.items.itemTypeId;
         const lItemsItemAmount = this.#serverData[id].tables.items.itemAmount;
-        const lRewardTypeId = this.#serverData[id].reward.typeId;
+        const lRewardTypeId = this.#serverData[id].rewardId;
 
         let result = false;
         let temporary;
-
-        let addedIds = 0;
 
         try {
 
@@ -1104,17 +950,21 @@ class Connector extends EventEmitter {
                 }
                 else {
 
-                    let nextId = this.#getNextId(id);
+                    temporary = (await connectionGS.query(`SELECT item_id FROM reserved_item_ids LIMIT 1;`))[0];
 
-                    while ((await connectionGS.query(`SELECT COUNT(${lItemsItemId}) AS instances FROM items WHERE ${lItemsItemId} = '${nextId}';`))[0][0].instances > 0)
-                        nextId = this.#getNextId(id);
+                    if (temporary.length == 1) {
 
-                    if ((await connectionGS.query(`INSERT INTO items (${lItemsCharacterId}, ${lItemsItemId}, ${lItemsItemTypeId}, ${lItemsItemAmount}, loc) VALUES (${charId}, ${nextId}, ${lRewardTypeId}, ${amount}, 'inventory');`))[0].affectedRows == 1) {
+                        const nextId = temporary[0].item_id;
 
-                        if ((await connectionLS.query(`DELETE FROM fiskpay_temporary WHERE server_id = ? AND character_id = '${charId}' AND amount = '${amount}' AND refund = '${refund}' LIMIT 1;`, [id]))[0].affectedRows == 1) {
+                        if ((await connectionGS.query(`DELETE FROM reserved_item_ids WHERE item_id = '${nextId}' LIMIT 1;`))[0].affectedRows == 1) {
 
-                            processed++;
-                            addedIds++;
+                            if ((await connectionGS.query(`INSERT INTO items (${lItemsCharacterId}, ${lItemsItemId}, ${lItemsItemTypeId}, ${lItemsItemAmount}, loc) VALUES (${charId}, ${nextId}, ${lRewardTypeId}, ${amount}, 'inventory');`))[0].affectedRows == 1) {
+
+                                if ((await connectionLS.query(`DELETE FROM fiskpay_temporary WHERE server_id = ? AND character_id = '${charId}' AND amount = '${amount}' AND refund = '${refund}' LIMIT 1;`, [id]))[0].affectedRows == 1) {
+
+                                    processed++;
+                                }
+                            }
                         }
                     }
                 }
@@ -1130,8 +980,6 @@ class Connector extends EventEmitter {
         finally {
 
             if (result === true) {
-
-                this.#increaseIdCount(id, addedIds);
 
                 await connectionLS.query(`COMMIT;`);
                 await connectionGS.query(`COMMIT;`);
