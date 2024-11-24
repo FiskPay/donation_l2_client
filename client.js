@@ -41,7 +41,7 @@ const fs = require("node:fs");
     console.log(dateTime() + " |");
     console.log(dateTime() + " | Fetching configuration file...");
 
-    const configFile = path.join((process.pkg && process.pkg.entrypoint) ? (".") : (path.dirname(process.argv[1])), "fp.config");
+    const configFile = path.join(path.dirname(process.argv[1]), "fp.config");
     const connectorConfig = JSON.parse(fs.readFileSync(configFile, { flag: "r", encoding: "utf8" }));
 
     console.log(dateTime() + " | Configuration file: " + configFile);
