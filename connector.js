@@ -547,7 +547,7 @@ class Connector extends EventEmitter {
 
         try {
 
-            temporary = (await connection.query(`SELECT SUM(i.${lItemsItemAmount}) AS balance FROM items AS i, characters AS c WHERE c.${lCharactersCharacterId} = i.${lItemsCharacterId} AND c.${lCharactersCharacterName} = ? AND i.${lItemsItemTypeId} = '${lRewardTypeId}' AND i.loc = 'inventory';`, [charname]))[0][0];
+            temporary = (await connection.query(`SELECT SUM(i.${lItemsItemAmount}) AS balance FROM items AS i, characters AS c WHERE c.${lCharactersCharacterId} = i.${lItemsCharacterId} AND c.${lCharactersCharacterName} = ? AND i.${lItemsItemTypeId} = '${lRewardTypeId}' AND i.loc = 'INVENTORY';`, [charname]))[0][0];
             result = { "data": (String((temporary.balance != null) ? (temporary.balance) : ("0"))) };
         }
         catch (error) {
@@ -662,7 +662,7 @@ class Connector extends EventEmitter {
 
             const charId = temporary[lCharactersCharacterId];
 
-            temporary = (await connectionGS.query(`SELECT ${lItemsItemId} FROM items WHERE ${lItemsItemTypeId} = '${lRewardTypeId}' AND loc = 'inventory' AND ${lItemsCharacterId} = '${charId}' LIMIT 1;`))[0];
+            temporary = (await connectionGS.query(`SELECT ${lItemsItemId} FROM items WHERE ${lItemsItemTypeId} = '${lRewardTypeId}' AND loc = 'INVENTORY' AND ${lItemsCharacterId} = '${charId}' LIMIT 1;`))[0];
 
             if (temporary.length == 1) {
 
@@ -697,7 +697,7 @@ class Connector extends EventEmitter {
 
                     if ((await connectionGS.query(`DELETE FROM reserved_item_ids WHERE item_id = '${nextId}' LIMIT 1;`))[0].affectedRows == 1) {
 
-                        if ((await connectionGS.query(`INSERT INTO items (${lItemsCharacterId}, ${lItemsItemId}, ${lItemsItemTypeId}, ${lItemsItemAmount}, loc) VALUES (${charId}, ${nextId}, ${lRewardTypeId}, ?, 'inventory');`, [amount]))[0].affectedRows == 1) {
+                        if ((await connectionGS.query(`INSERT INTO items (${lItemsCharacterId}, ${lItemsItemId}, ${lItemsItemTypeId}, ${lItemsItemAmount}, loc) VALUES (${charId}, ${nextId}, ${lRewardTypeId}, ?, 'INVENTORY');`, [amount]))[0].affectedRows == 1) {
 
                             if ((await connectionLS.query(`INSERT INTO fiskpay_deposits (server_id, transaction_hash, character_name, wallet_address, amount) VALUES (?, ?, ?, ?, ?);`, [id, txHash, character, from, amount]))[0].affectedRows == 1) {
 
@@ -785,7 +785,7 @@ class Connector extends EventEmitter {
                             result = { "fail": "Wallet validation failed" };
                         else {
 
-                            temporary = (await connectionGS.query(`SELECT SUM(${lItemsItemAmount}) AS balance FROM items WHERE ${lItemsItemTypeId} = '${lRewardTypeId}' AND ${lItemsCharacterId} = '${charId}' AND loc = 'inventory';`))[0][0];
+                            temporary = (await connectionGS.query(`SELECT SUM(${lItemsItemAmount}) AS balance FROM items WHERE ${lItemsItemTypeId} = '${lRewardTypeId}' AND ${lItemsCharacterId} = '${charId}' AND loc = 'INVENTORY';`))[0][0];
 
                             const charBalance = Number((temporary.balance != null) ? (temporary.balance) : (0));
 
@@ -798,7 +798,7 @@ class Connector extends EventEmitter {
                                 let remainAmount = amount;
                                 let index = 0;
 
-                                temporary = (await connectionGS.query(`SELECT ${lItemsItemAmount}, ${lItemsItemId} FROM items WHERE ${lItemsItemTypeId} = '${lRewardTypeId}' AND ${lItemsCharacterId} = '${charId}' AND loc = 'inventory';`))[0];
+                                temporary = (await connectionGS.query(`SELECT ${lItemsItemAmount}, ${lItemsItemId} FROM items WHERE ${lItemsItemTypeId} = '${lRewardTypeId}' AND ${lItemsCharacterId} = '${charId}' AND loc = 'INVENTORY';`))[0];
 
                                 while (remainAmount > 0) {
 
@@ -938,7 +938,7 @@ class Connector extends EventEmitter {
                 const amount = row.amount;
                 const refund = row.refund;
 
-                temporary = (await connectionGS.query(`SELECT ${lItemsItemId} FROM items WHERE ${lItemsItemTypeId} = '${lRewardTypeId}' AND loc = 'inventory' AND ${lItemsCharacterId} = '${charId}' LIMIT 1;`))[0];
+                temporary = (await connectionGS.query(`SELECT ${lItemsItemId} FROM items WHERE ${lItemsItemTypeId} = '${lRewardTypeId}' AND loc = 'INVENTORY' AND ${lItemsCharacterId} = '${charId}' LIMIT 1;`))[0];
 
                 if (temporary.length == 1) {
 
@@ -958,7 +958,7 @@ class Connector extends EventEmitter {
 
                         if ((await connectionGS.query(`DELETE FROM reserved_item_ids WHERE item_id = '${nextId}' LIMIT 1;`))[0].affectedRows == 1) {
 
-                            if ((await connectionGS.query(`INSERT INTO items (${lItemsCharacterId}, ${lItemsItemId}, ${lItemsItemTypeId}, ${lItemsItemAmount}, loc) VALUES (${charId}, ${nextId}, ${lRewardTypeId}, ${amount}, 'inventory');`))[0].affectedRows == 1) {
+                            if ((await connectionGS.query(`INSERT INTO items (${lItemsCharacterId}, ${lItemsItemId}, ${lItemsItemTypeId}, ${lItemsItemAmount}, loc) VALUES (${charId}, ${nextId}, ${lRewardTypeId}, ${amount}, 'INVENTORY');`))[0].affectedRows == 1) {
 
                                 if ((await connectionLS.query(`DELETE FROM fiskpay_temporary WHERE server_id = ? AND character_id = '${charId}' AND amount = '${amount}' AND refund = '${refund}' LIMIT 1;`, [id]))[0].affectedRows == 1) {
 
