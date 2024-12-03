@@ -622,7 +622,7 @@ class Connector extends EventEmitter {
         try {
 
             temporary = (await connection.query(`SELECT online FROM characters WHERE ${lCharactersCharacterName} = ? LIMIT 1;`, [character]))[0];
-            result = { "data": (temporary.length == 1 && String(temporary[0].online) != "1") };
+            result = { "data": (temporary.length == 0 || temporary[0].online != 1) };
         }
         catch (error) {
 

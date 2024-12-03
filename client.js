@@ -52,8 +52,8 @@ const fs = require("node:fs");
     let updateServerTimeout;
 
     const serverConnector = new connector(connectorConfig, remoteIPAddress);
-    //const socketConnector = io("wss://ds.fiskpay.com:42099", { "autoConnect": false, "reconnection": true, "reconnectionDelay": 5000, "reconnectionAttempts": Infinity });
-    const socketConnector = io("ws://127.0.0.1:42099", { "autoConnect": false, "reconnection": true, "reconnectionDelay": 5000, "reconnectionAttempts": Infinity });
+    const socketConnector = io("wss://ds.fiskpay.com:42099", { "autoConnect": false, "reconnection": true, "reconnectionDelay": 5000, "reconnectionAttempts": Infinity });
+    //const socketConnector = io("ws://127.0.0.1:42099", { "autoConnect": false, "reconnection": true, "reconnectionDelay": 5000, "reconnectionAttempts": Infinity });
 
     const serverName = (id) => {
 
@@ -244,10 +244,12 @@ const fs = require("node:fs");
 
         if (typeof serversStatus[server] == "undefined" || serversStatus[server].c !== true)
             console.log(dateTime() + " | You must manually reward character " + character + " with " + amount + " tokens. Game server " + serverName(server) + " database currently unavailable");
+        else if (await serverConnector.CHECK_IF_CHARACTER_OFFLINE(server, character) !== true)
+            console.log(dateTime() + " | Character " + character + " on server " + serverName(server) + " was found online while depositing " + amount + " tokens. Player was not rewarded");
         else if (await serverConnector.LOG_DEPOSIT(txHash, from, amount, server, character) === true)
             console.log(dateTime() + " | " + serverName(server) + ": " + from + " -> " + character + " = " + amount + " " + symbol);
         else
-            console.log(dateTime() + " | You must manually reward character " + character + " with " + amount + " tokens on game server " + serverName(server));
+            console.log(dateTime() + " | You must manually reward character " + character + " with " + amount + " tokens on server " + serverName(server));
     }).on("logWithdrawal", async (txHash, to, symbol, amount, server, character, refund) => {
 
         if (typeof serversStatus[server] == "undefined" || serversStatus[server].c !== true)
@@ -255,7 +257,7 @@ const fs = require("node:fs");
         else if (await serverConnector.LOG_WITHDRAWAL(txHash, to, amount, server, character, refund) === true)
             console.log(dateTime() + " | " + serverName(server) + ": " + character + " -> " + to + " = " + amount + " " + symbol);
         else
-            console.log(dateTime() + " | You must manually remove " + amount + " tokens from character " + character + " on game server " + serverName(server));
+            console.log(dateTime() + " | You must manually remove " + amount + " tokens from character " + character + " on server " + serverName(server));
     }).on("request", async (requestObject, requestCB) => {
 
         if (typeof serversStatus["ls"] == "undefined" || serversStatus["ls"].c !== true)
