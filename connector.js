@@ -636,6 +636,30 @@ class Connector extends EventEmitter {
         }
     }
 
+    CHARACTER_ONLINE = async (id, character) => {//C
+
+        const connection = await this.#connections[id].getConnection();
+        const lCharactersCharacterName = this.#serverData[id].tables.characters.characterName;
+
+        let result;
+        let temporary;
+
+        try {
+
+            temporary = (await connection.query(`SELECT online FROM characters WHERE ${lCharactersCharacterName} = ? LIMIT 1;`, [character]))[0];
+            result = (temporary[0].online == 1);
+        }
+        catch (error) {
+
+            this.emit("error", error);
+        }
+        finally {
+
+            connection.release();
+            return result;
+        }
+    }
+
     LOG_DEPOSIT = async (txHash, from, amount, id, character) => {//C
 
         const connectionLS = await this.#connections["ls"].getConnection();

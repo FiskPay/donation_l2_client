@@ -244,8 +244,8 @@ const fs = require("node:fs");
 
         if (typeof serversStatus[server] == "undefined" || serversStatus[server].c !== true)
             console.log(dateTime() + " | You must manually reward character " + character + " with " + amount + " tokens. Game server " + serverName(server) + " database currently unavailable");
-        else if (await serverConnector.CHECK_IF_CHARACTER_OFFLINE(server, character) !== true)
-            console.log(dateTime() + " | Character " + character + " on server " + serverName(server) + " was found online while depositing " + amount + " tokens. Player was not rewarded");
+        else if (await serverConnector.CHARACTER_ONLINE(server, character) !== false)
+            console.log(dateTime() + " | Character " + character + " on " + serverName(server) + " was online while depositing " + amount + " tokens. Player not rewarded");
         else if (await serverConnector.LOG_DEPOSIT(txHash, from, amount, server, character) === true)
             console.log(dateTime() + " | " + serverName(server) + ": " + from + " -> " + character + " = " + amount + " " + symbol);
         else
