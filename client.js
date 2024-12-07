@@ -25,7 +25,18 @@ const fs = require("node:fs");
     console.log(dateTime() + " |                          L2J Blockchain Support by FiskPay                          ");
     console.log(dateTime() + " | ----------------------------------------------------------------------------------- ");
 
-    const tokenSymbol = "USDT";// USDT LINK
+    console.log(dateTime() + " |");
+    console.log(dateTime() + " | Fetching configuration file...");
+
+    const configFile = path.join(path.dirname(process.argv[1]), "fp.config");
+    const connectorConfig = JSON.parse(fs.readFileSync(configFile, { flag: "r", encoding: "utf8" }));
+
+    const tokenSymbol = connectorConfig["client"].token;
+
+    const clientWalletAddress = connectorConfig["client"].wallet;
+    const clientPassword = connectorConfig["client"].password;
+
+    console.log(dateTime() + " | Configuration file: " + configFile);
 
     console.log(dateTime() + " |");
     console.log(dateTime() + " | Supporting " + tokenSymbol + " token on Polygon network");
@@ -38,14 +49,6 @@ const fs = require("node:fs");
 
     console.log(dateTime() + " | Remote IP address: " + remoteIPAddress);
 
-    console.log(dateTime() + " |");
-    console.log(dateTime() + " | Fetching configuration file...");
-
-    const configFile = path.join(path.dirname(process.argv[1]), "fp.config");
-    const connectorConfig = JSON.parse(fs.readFileSync(configFile, { flag: "r", encoding: "utf8" }));
-
-    console.log(dateTime() + " | Configuration file: " + configFile);
-
     let serversStatus = {};
     let onlineServers = [];
 
@@ -57,7 +60,7 @@ const fs = require("node:fs");
 
     const serverName = (id) => {
 
-        switch (String(id)) {
+        switch ((id)) {
 
             case "1":
                 return "Bartz";
@@ -223,7 +226,7 @@ const fs = require("node:fs");
 
     socketConnector.on("connect", () => {
 
-        socketConnector.emit("login", { "symbol": tokenSymbol, "wallet": connectorConfig["client"].walletAddress, "password": connectorConfig["client"].password, "servers": onlineServers }, async (responseObject) => {
+        socketConnector.emit("login", { "symbol": tokenSymbol, "wallet": clientWalletAddress, "password": clientPassword, "servers": onlineServers }, async (responseObject) => {
 
             if (responseObject.fail) {
 
@@ -394,7 +397,9 @@ const fs = require("node:fs");
         process.exit();
     }
 
-    for (const id of serverIDs) {
+    for (let id of serverIDs) {
+
+        id = id.toString();
 
         if (!(connectorConfig[id] && connectorConfig[id].rewardTypeId && connectorConfig[id].dbName && connectorConfig[id].dbIPAddress && connectorConfig[id].dbPort && connectorConfig[id].dbUsername && connectorConfig[id].dbPassword && connectorConfig[id].dbTableColumns && connectorConfig[id].dbTableColumns.characters && connectorConfig[id].dbTableColumns.items)) {
 
