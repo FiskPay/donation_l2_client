@@ -1,0 +1,26 @@
+=====================================================================================
+@ Line 401
+=====================================================================================
+
+AntiFeedManager.getInstance().registerEvent(AntiFeedManager.GAME_ID);
+
+if (general().allowMail()) {
+	MailManager.getInstance();
+}
+
+PunishmentManager.getInstance();
+
+Runtime.getRuntime().addShutdownHook(Shutdown.getInstance());
+
+LOG.info("Free Object Ids remaining {}.", IdFactory.getInstance().size());
+
++	IdFactory.getInstance().l2jFiskPay();
++	LOG.info("Initialized FiskPay IDs");
+
+TvTManager.getInstance();
+KnownListUpdateTaskManager.getInstance();
+
+if ((customs().offlineTradeEnable() || customs().offlineCraftEnable()) && customs().restoreOffliners()) {
+	OfflineTradersTable.getInstance().restoreOfflineTraders();
+}
+endTimedSection("Other", otherStart);

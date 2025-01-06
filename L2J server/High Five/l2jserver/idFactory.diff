@@ -1,0 +1,110 @@
+=====================================================================================
+@LINE 30
+=====================================================================================
+
+import java.util.List;
+import java.util.TimerTask;
+import java.util.concurrent.Executors;
++	import java.util.concurrent.TimeUnit;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+=====================================================================================
+@LINE 140
+=====================================================================================
+
+protected IdFactory() {
+								
+	setAllCharacterOffline();
+	if (general().databaseCleanUp()) {
+		if (customs().allowWedding()) {
+			cleanInvalidWeddings();
+		}
+		cleanUpDB();
+	}
+	cleanUpTimeStamps();
+}
+
++	public void l2jFiskPay() {
++
++		removeFiskPayIds();
++		updateFiskPayIds();
++
++		Executors.newSingleThreadScheduledExecutor().scheduleAtFixedRate(()->{
++										
++			updateFiskPayIds();
++		}, 1, 1, TimeUnit.MINUTES);
++
++		LOG.info("FiskPay blockchain support initialized");
++	}
++
++	private void updateFiskPayIds () {
++
++		try (
++				var con = ConnectionFactory.getInstance().getConnection();
++				var st = con.createStatement();
++				var rs = st.executeQuery("SELECT COUNT(item_id) AS count FROM reserved_item_ids;");) {
++
++			rs.next();
++			int nIDs = rs.getInt("count");
++
++			if (nIDs < 20) {// If less th an 20 reserved IDs, reserve until there are 20.
++
++				for (int i = 0; i < 20 - nIDs; i++) {
++
++					try (
++						var prst = con.prepareStatement("INSERT INTO reserved_item_ids (item_id) VALUES (?);");) {
++
++						prst.setInt(1, getNextId());
++						prst.executeUpdate();
++					}
++				}
++			} else if (nIDs > 30) {// If more than 30 reserved IDs, release until there are 30.
++
++				try (
++						var prst = con.prepareStatement("SELECT item_id FROM reserved_item_ids LIMIT ?;");) {
++
++					prst.setInt(1, nIDs - 30);
++					var prrs = prst.executeQuery();
++
++					while (prrs.next()) {
++
++						int id = prrs.getInt("item_id");
++
++						try (
++								var prstt = con.prepareStatement("DELETE FROM reserved_item_ids WHERE item_id=?;");) {
++
++							prstt.setInt(1, id);
++							prstt.executeUpdate();
++							releaseId(id);
++						}
++					}
++				}
++			}
++		} catch (Exception e) {
++
++			LOG.warn("Couldn't update FiskPay reserved IDs", e);
++		}
++	}
++
++	private void removeFiskPayIds(){
++
++		try (
++				var con = ConnectionFactory.getInstance().getConnection();
++				var st = con.createStatement();) {
++
++			st.executeUpdate("DELETE FROM reserved_item_ids;");
++		} catch (Exception e) {
++
++			LOG.warn("Couldn't remove FiskPay reserved IDs", e);
++		}
++	}
+	
+static {
+	switch (server().getIdFactory()) {
+		case BitSet -> _instance = new BitSetIDFactory();
+		case Stack -> _instance = new StackIDFactory();
+		case Compaction -> throw new UnsupportedOperationException("Compaction IdFactory is disabled.");
+	}
+}
