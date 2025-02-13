@@ -343,7 +343,7 @@ const fs = require("node:fs");
                 }
                 case "doWithdraw": {
 
-                    requestCB(await serverConnector.CREATE_REFUND(data.address, data.amount, requestObject.id, data.character, data.refund));
+                    requestCB(await serverConnector.CREATE_REFUND(data.walletAddress, data.amount, requestObject.id, data.character, data.refund));
 
                     break;
                 }
